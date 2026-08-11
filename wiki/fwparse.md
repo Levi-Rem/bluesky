@@ -1,0 +1,1 @@
+The [fwparser.py](https://github.com/TUDelft-CNS-ATM/bluesky/blob/master/bluesky/tools/fwparser.py) (fixed width parser) is used to parse fixed-width column-based text data. In Bluesky this module is used to parse BADA data files. 

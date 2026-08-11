@@ -1,0 +1,14 @@
+# RSZONER: Rszoner
+Set horizontal radius of conflict resolution zone.
+
+**Usage:**
+
+    RSZONER [radius]
+
+**Arguments:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+radius|float|Yes|Radius [NM]
+
+[[Back to command reference.|Command Reference]]

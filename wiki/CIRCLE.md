@@ -1,0 +1,19 @@
+# CIRCLE: Circle
+Draw a circle shaped area on the radar display with a user defined name. This circle can be made into an area of interest using the [[AREA]] command.
+
+**Usage:**
+
+    CIRCLE name,lat,lon,radius,[top,bottom]
+
+**Arguments:**
+
+|Name|Type|Required|Description|
+|--------|------|---|---------------------------------------------------
+name| txt | yes | name of the box  |
+lat| float| yes | [[latitude|Coordinates]] of circle center |
+lon| float| yes | [[longitude|Coordinates]] of circle center |
+radius| float | yes | radius of circle [nm] |
+top| float    | no | [[altitude]] of top of circle |
+bottom| float | no | [[altitude]] of bottom of circle |
+
+[[Back to command reference.|Command Reference]]

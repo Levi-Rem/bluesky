@@ -1,0 +1,39 @@
+# Redundant source archive (already extracted into bluesky-master/)
+bluesky-master.zip
+
+# Python bytecode / virtual envs
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv/
+venv/
+env/
+.Python
+
+# Tooling / analysis caches
+.understand-anything/
+.cache/
+.mypy_cache/
+.tox/
+.coverage
+htmlcov/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.bak
+.idea/
+.vscode/
+*.sublime*
+*.atom-build*
+
+# Build / packaging output
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+sdist/
+*.manifest
+*.spec

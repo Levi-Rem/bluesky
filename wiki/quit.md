@@ -1,0 +1,12 @@
+# QUIT: Quit
+Quit program/Stop simulation
+
+**Usage:**
+
+    QUIT
+
+**Arguments:**
+
+This command has no arguments.
+
+[[Back to command reference.|Command Reference]]

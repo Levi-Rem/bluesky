@@ -1,0 +1,20 @@
+# RUNWAYS: Runways
+Get info of the runways of an airport. This function is equivalent to the [[POS]] function. RUNWAYS will therefore return:
+
+* Airport size
+* Location
+* Elevation
+* Country name
+* Number of runways (if known)
+
+**Usage:**
+
+    RUNWAYS airport
+
+**Arguments:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+airport|txt|yes| [[airport name| Aircraft ID]]
+
+[[Back to command reference.|Command Reference]]

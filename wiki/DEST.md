@@ -1,0 +1,23 @@
+# DEST: Dest
+Set destination airport of aircraft.
+
+**Usage:**
+
+    DEST acid, latlon/airport
+
+**Arguments 1:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+acid|text|yes|[[Aircraft id]]
+lat|float/txt|yes|[[Latitude [deg]|Coordinates]]
+lon|float/txt|yes|[[Longitude [deg]|Coordinates]]
+
+**Arguments 2:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+acid|text|yes|[[Aircraft id]]
+airport|txt|yes|4 letters of airport ICAO code
+
+[[Back to command reference.|Command Reference]]

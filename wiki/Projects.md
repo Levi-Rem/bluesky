@@ -1,0 +1,4 @@
+# Projects that use(d) BlueSky:
+* [PhD project: Analyzing the relationship between airspace structure and capacity](http://cs.lr.tudelft.nl/atm/projects/analyzing-the-relationship-between-airspace-structure-and-capacity/)
+* [PhD project: Developing Aircraft Performance Models using Data Mining](http://cs.lr.tudelft.nl/atm/projects/developing-aircraft-performance-models-using-data-mining/)
+* [PhD project: Evaluating the effect of an ATC advisory system for the prevention of bird strikes](http://cs.lr.tudelft.nl/atm/projects/evaluating-the-effect-of-an-atc-advisory-system-for-the-prevention-of-bird-strikes/)

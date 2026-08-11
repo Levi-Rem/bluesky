@@ -1,0 +1,14 @@
+# RFACV: Rfacv
+Set resolution factor vertical (to add a margin)
+
+**Usage:**
+
+    RFACV [factor]
+
+**Arguments:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+factor|float|Yes|Vertical margin [ft]
+
+[[Back to command reference.|Command Reference]]

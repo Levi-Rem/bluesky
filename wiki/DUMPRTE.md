@@ -1,0 +1,14 @@
+# DUMPRTE: Dumprte
+Write the aircraft route into routelog.txt file inside output folder.
+
+**Usage:**
+
+    DUMPRTE acid
+
+**Arguments:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+acid|txt|Yes|[[Aircraft id]]
+
+[[Back to command reference.|Command Reference]]

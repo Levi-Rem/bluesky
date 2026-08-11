@@ -1,0 +1,20 @@
+# DTLOOK: Dtlook
+Set lookahead time in seconds for conflict detection.
+
+When conflict detection is performed, the positions and velocities of all aircraft are linearly extrapolated _dtlook_ seconds into the future. If any intrusion is predicted within the lookahead time, a conflict is raised.
+
+The standard value of _dtlook_ is 300 seconds.
+
+If no value of _dtlook_ is provided, the current _dtlook_ setting will be displayed in the command window.
+
+**Usage:**
+
+    DTLOOK [time]
+
+**Arguments:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+time|float|no|Lookahead time for conflict detection [s]
+
+[[Back to command reference.|Command Reference]]

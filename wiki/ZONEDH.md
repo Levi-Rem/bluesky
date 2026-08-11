@@ -1,0 +1,14 @@
+# ZONEDH: Zonedh
+Set half of the vertical protected zone [ft]
+
+**Usage:**
+
+    ZONEDH [height]
+
+**Arguments:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+height|float|Yes| Height [ft]
+
+[[Back to command reference.|Command Reference]]

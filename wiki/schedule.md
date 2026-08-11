@@ -1,0 +1,15 @@
+# SCHEDULE: Schedule
+Schedule a stack command at a given time
+
+**Usage:**
+
+    SCHEDULE time, COMMAND+ARGS
+
+**Arguments:**
+
+|Name|Type|Optional|Description
+|--------|------|---|---------------------------------------------------
+time|time|No|The time you want the command to be scheduled
+COMMAND+ARGS|txt|No|The command to be scheduled
+
+[[Back to command reference.|Command Reference]]

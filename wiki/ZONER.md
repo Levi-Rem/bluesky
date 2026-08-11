@@ -1,0 +1,14 @@
+# ZONER: Zoner
+Set the radius of the horizontal protected zone [NM]
+
+**Usage:**
+
+    ZONER [radius]
+
+**Arguments:**
+
+|Name|Type|Optional|Description
+|--------|------|---|---------------------------------------------------
+radius|float|Yes|Radius [NM]
+
+[[Back to command reference.|Command Reference]]

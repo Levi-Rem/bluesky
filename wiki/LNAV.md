@@ -1,0 +1,15 @@
+# LNAV: Lnav
+LNAV (lateral navigation in FMS mode) switch for autopilot
+
+**Usage:**
+
+    LNAV acid,switch
+
+**Arguments:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+acid|txt|Yes|[[Aircraft id]]
+switch|ON/OFF|Yes|Switch to ON or OFF the LNAV mode
+
+[[Back to command reference.|Command Reference]]

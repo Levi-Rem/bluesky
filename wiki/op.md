@@ -1,0 +1,12 @@
+# OP: Op
+Start/Run simulation or continue after pause
+
+**Usage:**
+
+    OP
+
+**Arguments:**
+
+This command has no arguments.
+
+[[Back to command reference.|Command Reference]]

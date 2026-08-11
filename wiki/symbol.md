@@ -1,0 +1,12 @@
+# SYMBOL: Symbol
+Toggle aircraft symbol
+
+**Usage:**
+
+    SYMBOL
+
+**Arguments:**
+
+This command has no arguments.
+
+[[Back to command reference.|Command Reference]]

@@ -1,0 +1,14 @@
+# DT: Dt
+Set the time-step for the current simulation.
+
+**Usage:**
+
+    DT dt
+
+**Arguments:**
+
+|Name|Type|Required|Description|
+|---|---|---|---|
+|dt|float|yes|The time-step in seconds
+
+[[Back to command reference.|Command Reference]]

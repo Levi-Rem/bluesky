@@ -1,0 +1,14 @@
+# DELRTE: Delrte
+Delete for this aircraft the complete route/dest/orig (FMS)
+
+**Usage:**
+
+    DELRTE acid
+
+**Arguments:**
+
+|Name|Type|Required|Description
+|--------|------|---|---------------------------------------------------
+acid|txt|Yes|[[Aircraft id]]
+
+[[Back to command reference.|Command Reference]]

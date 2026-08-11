@@ -1,0 +1,1 @@
+Start BlueSky by running BlueSky.py as a Python file. 
