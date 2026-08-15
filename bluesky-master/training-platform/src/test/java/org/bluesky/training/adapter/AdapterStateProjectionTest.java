@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(classes = TrainingPlatformApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@DirtiesContext
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class AdapterStateProjectionTest {
     @Autowired
     private MockMvc mockMvc;
@@ -39,6 +39,7 @@ class AdapterStateProjectionTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validAircraftBody()))
                 .andExpect(status().isCreated());
+        startGroup();
         MvcResult stream = mockMvc.perform(get("/api/v1/events")
                         .param("exerciseGroupId", "GROUP-DEFAULT")
                         .header("Accept", "text/event-stream"))
@@ -78,11 +79,14 @@ class AdapterStateProjectionTest {
 
     @Test
     void acceptsSequenceRestartFromANewAdapterInstance() throws Exception {
+        startGroup();
         stateProjector.acceptJson("{\"protocolVersion\":\"1.0\","
                 + "\"instanceId\":\"adapter-a\",\"sequence\":99,"
+                + "\"exerciseGroupId\":\"GROUP-DEFAULT\","
                 + "\"simulationTimeSeconds\":99,\"aircraft\":[]}");
         stateProjector.acceptJson("{\"protocolVersion\":\"1.0\","
                 + "\"instanceId\":\"adapter-b\",\"sequence\":1,"
+                + "\"exerciseGroupId\":\"GROUP-DEFAULT\","
                 + "\"simulationTimeSeconds\":1,\"aircraft\":[]}");
 
         mockMvc.perform(get("/api/v1/workstation/bootstrap"))
@@ -92,19 +96,62 @@ class AdapterStateProjectionTest {
 
     @Test
     void rejectsDelayedFrameFromAnAdapterInstanceAlreadyReplaced() throws Exception {
+        startGroup();
         stateProjector.acceptJson("{\"protocolVersion\":\"1.0\","
                 + "\"instanceId\":\"adapter-a\",\"sequence\":99,"
+                + "\"exerciseGroupId\":\"GROUP-DEFAULT\","
                 + "\"simulationTimeSeconds\":99,\"aircraft\":[]}");
         stateProjector.acceptJson("{\"protocolVersion\":\"1.0\","
                 + "\"instanceId\":\"adapter-b\",\"sequence\":1,"
+                + "\"exerciseGroupId\":\"GROUP-DEFAULT\","
                 + "\"simulationTimeSeconds\":1,\"aircraft\":[]}");
         stateProjector.acceptJson("{\"protocolVersion\":\"1.0\","
                 + "\"instanceId\":\"adapter-a\",\"sequence\":100,"
+                + "\"exerciseGroupId\":\"GROUP-DEFAULT\","
                 + "\"simulationTimeSeconds\":100,\"aircraft\":[]}");
 
         mockMvc.perform(get("/api/v1/workstation/bootstrap"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.exerciseGroup.simulationTimeSeconds").value(1));
+    }
+
+    @Test
+    void retiresThePreviousInstanceWhenTheFirstNewFrameIsMalformed() throws Exception {
+        startGroup();
+        stateProjector.acceptJson(frame("adapter-a", 99, 99));
+        stateProjector.acceptJson(frame("adapter-b", -1, 1));
+        stateProjector.acceptJson(frame("adapter-a", 100, 100));
+        stateProjector.acceptJson(frame("adapter-b", 0, 2));
+
+        mockMvc.perform(get("/api/v1/workstation/bootstrap"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.exerciseGroup.simulationTimeSeconds").value(2));
+    }
+
+    @Test
+    void ignoresSimulationTimeWhileTheExerciseIsPaused() throws Exception {
+        startGroup();
+        stateProjector.acceptJson(frame("adapter-a", 1, 10));
+        mockMvc.perform(post("/api/v1/exercise-groups/GROUP-DEFAULT/pause"))
+                .andExpect(status().isOk());
+
+        stateProjector.acceptJson(frame("adapter-a", 2, 99));
+
+        mockMvc.perform(get("/api/v1/workstation/bootstrap"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.exerciseGroup.simulationTimeSeconds").value(10));
+    }
+
+    private void startGroup() throws Exception {
+        mockMvc.perform(post("/api/v1/exercise-groups/GROUP-DEFAULT/start"))
+                .andExpect(status().isOk());
+    }
+
+    private String frame(String instanceId, long sequence, long simulationTime) {
+        return "{\"protocolVersion\":\"1.0\","
+                + "\"instanceId\":\"" + instanceId + "\",\"sequence\":" + sequence + ","
+                + "\"exerciseGroupId\":\"GROUP-DEFAULT\","
+                + "\"simulationTimeSeconds\":" + simulationTime + ",\"aircraft\":[]}";
     }
 
     private String validAircraftBody() {

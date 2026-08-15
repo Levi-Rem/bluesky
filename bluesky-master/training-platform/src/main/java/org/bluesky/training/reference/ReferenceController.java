@@ -1,23 +1,19 @@
 package org.bluesky.training.reference;
 
-import org.bluesky.training.adapter.SimulationGateway;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/v1/reference")
 public class ReferenceController {
-    private static final int DEFAULT_LIMIT = 20;
+    private final ReferenceService referenceService;
 
-    private final SimulationGateway simulationGateway;
-
-    public ReferenceController(SimulationGateway simulationGateway) {
-        this.simulationGateway = simulationGateway;
+    public ReferenceController(ReferenceService referenceService) {
+        this.referenceService = referenceService;
     }
 
     @GetMapping("/airports")
@@ -36,9 +32,6 @@ public class ReferenceController {
     }
 
     private List<ReferenceItem> search(String kind, String query) {
-        return simulationGateway.searchReference(
-                kind,
-                query == null ? "" : query.trim().toUpperCase(Locale.ROOT),
-                DEFAULT_LIMIT);
+        return referenceService.search(kind, query);
     }
 }

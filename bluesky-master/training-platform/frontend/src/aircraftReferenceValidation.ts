@@ -31,6 +31,17 @@ export async function validateAircraftReferences(
   return ''
 }
 
+export async function validateInitialWaypointReference(
+  initialWaypoint: string, search: Search
+): Promise<string> {
+  const code = initialWaypoint.trim().toUpperCase()
+  if (!code) return ''
+  const [waypoint, airport] = await Promise.all([
+    exactMatch('waypoints', code, search), exactMatch('airports', code, search)
+  ])
+  return waypoint || airport ? '' : `未知初始航路点: ${code}`
+}
+
 async function exactMatch(
   kind: 'airports' | 'waypoints' | 'aircraft-types',
   code: string,

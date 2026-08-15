@@ -10,6 +10,8 @@ export const useWorkstationStore = defineStore('workstation', () => {
   const error = ref('')
   const loading = ref(false)
   let events: EventSource | null = null
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let reconnectAttempt = 0
   let instructionRequest = 0
 
   const aircraft = computed(() => bootstrap.value?.aircraft ?? [])
@@ -24,34 +26,76 @@ export const useWorkstationStore = defineStore('workstation', () => {
       if (!bootstrap.value.aircraft.some(item => item.id === selectedAircraftId.value)) {
         selectedAircraftId.value = bootstrap.value.aircraft[0]?.id ?? null
       }
-      await loadInstructions()
-      connectEvents()
+      restoreInstructionsFromSnapshot()
     } catch (reason) {
       error.value = reason instanceof Error ? reason.message : String(reason)
+      return
     } finally {
       loading.value = false
+    }
+    try {
+      connectEvents()
+    } catch (reason) {
+      error.value = `工作台已加载，状态连接失败：${reason instanceof Error ? reason.message : String(reason)}`
+      scheduleReconnect()
     }
   }
 
   function connectEvents() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
     events?.close()
-    events = new EventSource('/api/v1/events?exerciseGroupId=GROUP-DEFAULT')
-    events.addEventListener('snapshot', event => {
+    const source = new EventSource('/api/v1/events?exerciseGroupId=GROUP-DEFAULT')
+    events = source
+    source.addEventListener('snapshot', event => {
       bootstrap.value = JSON.parse((event as MessageEvent).data) as Bootstrap
       if (!aircraft.value.some(item => item.id === selectedAircraftId.value)) {
         selectedAircraftId.value = aircraft.value[0]?.id ?? null
       }
-      void loadInstructions()
+      restoreInstructionsFromSnapshot()
     })
-    events.addEventListener('exercise-state', event => {
+    source.addEventListener('exercise-state', event => {
       if (bootstrap.value) bootstrap.value.exerciseGroup = JSON.parse((event as MessageEvent).data) as ExerciseGroup
     })
-    events.addEventListener('engine-state', event => updateEngine(JSON.parse((event as MessageEvent).data)))
-    events.addEventListener('aircraft-upserted', event => upsertAircraft(JSON.parse((event as MessageEvent).data)))
-    events.addEventListener('aircraft-deleted', event => removeAircraft(JSON.parse((event as MessageEvent).data).id))
-    events.addEventListener('instruction-upserted', event => upsertInstruction(JSON.parse((event as MessageEvent).data)))
-    events.onerror = () => { error.value = '状态连接中断，正在自动重连' }
-    events.onopen = () => { error.value = '' }
+    source.addEventListener('engine-state', event => updateEngine(JSON.parse((event as MessageEvent).data)))
+    source.addEventListener('aircraft-upserted', event => upsertAircraft(JSON.parse((event as MessageEvent).data)))
+    source.addEventListener('aircraft-deleted', event => removeAircraft(JSON.parse((event as MessageEvent).data).id))
+    source.addEventListener('instruction-upserted', event => upsertInstruction(JSON.parse((event as MessageEvent).data)))
+    source.onerror = () => {
+      if (events !== source) return
+      source.close()
+      events = null
+      error.value = '状态连接中断，正在自动重连'
+      scheduleReconnect()
+    }
+    source.onopen = () => {
+      reconnectAttempt = 0
+      error.value = ''
+    }
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return
+    const delay = Math.min(1000 * (2 ** reconnectAttempt), 30000)
+    reconnectAttempt += 1
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      try {
+        connectEvents()
+      } catch (reason) {
+        error.value = `状态重连失败：${reason instanceof Error ? reason.message : String(reason)}`
+        scheduleReconnect()
+      }
+    }, delay)
+  }
+
+  function restoreInstructionsFromSnapshot() {
+    const aircraftId = selectedAircraftId.value
+    instructions.value = aircraftId
+      ? (bootstrap.value?.instructions ?? []).filter(item => item.aircraftId === aircraftId)
+      : []
   }
 
   function upsertAircraft(next: Aircraft) {
@@ -63,13 +107,6 @@ export const useWorkstationStore = defineStore('workstation', () => {
 
   function updateEngine(next: EngineState) {
     if (bootstrap.value) bootstrap.value.engine = next
-    else bootstrap.value = {
-      terminal: { id: '', name: '' },
-      exerciseGroup: { id: '', name: '', state: 'READY', simulationTimeSeconds: 0 },
-      engine: next,
-      aircraft: [],
-      uiParameters: { theme: 'DEFAULT_DARK', trackColor: '#58d7ff', selectedTrackColor: '#ffe66d' }
-    }
   }
 
   function removeAircraft(id: string) {
@@ -77,11 +114,14 @@ export const useWorkstationStore = defineStore('workstation', () => {
     bootstrap.value.aircraft = bootstrap.value.aircraft.filter(item => item.id !== id)
     if (selectedAircraftId.value === id) {
       selectedAircraftId.value = aircraft.value[0]?.id ?? null
-      void loadInstructions()
+      void loadInstructions().catch(reason => {
+        error.value = reason instanceof Error ? reason.message : String(reason)
+      })
     }
   }
 
   function upsertInstruction(next: Instruction) {
+    if (next.aircraftId !== selectedAircraftId.value) return
     const index = instructions.value.findIndex(item => item.id === next.id)
     if (index >= 0) instructions.value[index] = next
     else instructions.value.push(next)

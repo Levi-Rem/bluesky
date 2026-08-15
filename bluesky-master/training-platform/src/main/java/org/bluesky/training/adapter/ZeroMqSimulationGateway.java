@@ -115,7 +115,8 @@ public class ZeroMqSimulationGateway implements SimulationGateway, AutoCloseable
         try {
             ObjectNode request = objectMapper.createObjectNode();
             request.put("protocolVersion", PROTOCOL_VERSION);
-            request.put("requestId", UUID.randomUUID().toString());
+            String requestId = UUID.randomUUID().toString();
+            request.put("requestId", requestId);
             request.put("type", type);
             request.put("exerciseGroupId", "GROUP-DEFAULT");
             request.set("payload", payload);
@@ -131,6 +132,9 @@ public class ZeroMqSimulationGateway implements SimulationGateway, AutoCloseable
             JsonNode response = objectMapper.readTree(new String(responseBytes, StandardCharsets.UTF_8));
             if (!PROTOCOL_VERSION.equals(response.path("protocolVersion").asText())) {
                 throw new AdapterUnavailableException("BlueSky Adapter 协议版本不兼容");
+            }
+            if (!requestId.equals(response.path("requestId").asText())) {
+                throw new AdapterUnavailableException("BlueSky Adapter 响应 requestId 不匹配");
             }
             if (!response.path("success").asBoolean(false)) {
                 throw new AdapterRejectedException(

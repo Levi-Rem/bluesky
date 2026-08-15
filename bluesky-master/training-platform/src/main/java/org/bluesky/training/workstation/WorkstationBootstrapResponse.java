@@ -1,8 +1,8 @@
 package org.bluesky.training.workstation;
 
 import org.bluesky.training.adapter.EngineHealth;
+import org.bluesky.training.instruction.InstructionResponse;
 
-import java.util.Collections;
 import java.util.List;
 
 public final class WorkstationBootstrapResponse {
@@ -10,17 +10,20 @@ public final class WorkstationBootstrapResponse {
     private final ExerciseGroupView exerciseGroup;
     private final EngineHealth engine;
     private final List<?> aircraft;
+    private final List<InstructionResponse> instructions;
     private final UiParametersView uiParameters;
 
     public WorkstationBootstrapResponse(TerminalView terminal,
                                         ExerciseGroupView exerciseGroup,
                                         EngineHealth engine,
                                         UiParametersView uiParameters,
-                                        List<?> aircraft) {
+                                        List<?> aircraft,
+                                        List<InstructionResponse> instructions) {
         this.terminal = terminal;
         this.exerciseGroup = exerciseGroup;
         this.engine = engine;
         this.aircraft = aircraft;
+        this.instructions = instructions;
         this.uiParameters = uiParameters;
     }
 
@@ -38,6 +41,10 @@ public final class WorkstationBootstrapResponse {
 
     public List<?> getAircraft() {
         return aircraft;
+    }
+
+    public List<InstructionResponse> getInstructions() {
+        return instructions;
     }
 
     public UiParametersView getUiParameters() {

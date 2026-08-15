@@ -10,7 +10,17 @@
 
 首版闭环主体与详细设计**高度一致**（约 8/10）：状态机、三通道、六类指令、单帧容差、英制口径、同步确认、协议 10 类消息、单位换算、sequence/instanceId、DCT/RTE 单调回执、建机失败回滚均按文档落地；修复方案 §0 五个缺陷全部核实已修复（测试+实现双证据）；Q01（不修改 BlueSky 核心）git 证据确凿通过；T24"进行中"标记与证据相符。
 
-主要问题集中在三类：① 文档滞后（性能包线已实现却登记"后续"、迁移版本数 V1~V5 vs 文档 V1~V3）；② SSE 契约缺口（snapshot 不含指令队列、heartbeat 未实现、无递增退避）；③ 若干正常路径缺陷（队列停滞、实例切换、协议应答未校验等）。
+主要问题集中在三类：① 文档滞后（性能包线已实现却登记"后续"、迁移版本数 V1~V5 vs 文档 V1~V3）；② SSE 契约缺口（snapshot 不含指令队列、无递增退避）；③ 若干正常路径缺陷（队列停滞、实例切换、协议应答未校验等）。原报告关于 heartbeat 缺失的判断经复核为误报，见后文整改结果。
+
+## 复核与整改结果
+
+依据当前源码、调用路径和回归测试逐项复核后：
+
+- **已修复代码项**：D2、D5、D6、D7、D10、D11、F1～F9、F11～F13、F18、附注 1/2。快照现含全组指令队列；失败指令不会永久阻塞同通道后续队列；协议校验 requestId/训练组；暂停状态不覆盖仿真时间；Adapter 更新异常被隔离；前端补初始航路点、字段错误详情和递增退避。
+- **已回写文档项**：D1、D3、D8、D9、D12。性能包线登记、V1～V5、每请求独立 REQ Socket、201 状态码和首版英制口径均已与实现对齐。
+- **确认误报并放弃修改**：D4（`EngineStateMonitor` 已发布 heartbeat 且有测试）、F10（单一“当前指令”按详细设计显示最近开始的执行中指令）、F19（请求层已把 IOException 包装为运行时异常，health 可捕获）、F20（空航路默认落地机场已在 CONTEXT L316/L324/L336 明确规定）。
+- **不满足当前缺陷门槛，放弃修改**：F14（重叠标牌属首版可接受交互）、F15（仅手工直插绕过应用校验）、F16（未来多席位场景）、F17（队列采用从当前项向上倒序展示，已有测试锁定语义）。
+- **额外发现并修复**：`pom.xml` 在 Java 8 项目中使用 JDK 9+ 的 `--release` 参数，导致 Java 8 无法构建；已改为兼容的 source/target 配置。
 
 ## A. 文档与实现差异
 
@@ -19,7 +29,7 @@
 | D1 | 高 | `engine.py:276-333`、`airborne_performance.py`、`data/airborne_performance.json`、迁移 V4/V5 | CONTEXT L716「性能包线暂不实现」、修复方案 WP-5/G5、附录A#6、详细设计 §2.3「创建校验仅存在性」、§5 目录清单（4 文件） | 空中性能包线/升限校验已完整实现（建机、ALT 升限、SPD 包线、VS 限幅、性能快照），但所有文档登记为"后续/暂不实现"；Adapter 实际 6 文件+data/ |
 | D2 | 高 | `EventStreamService.java`、`WorkstationBootstrapResponse.java` | 详细设计 §8.6「snapshot：训练组、引擎、全部航空器和指令队列」、Q23 | SSE snapshot 与 bootstrap 均不含指令队列，断线重连无法恢复指令队列 |
 | D3 | 中 | 迁移目录 V1~V5 | 实施任务 T24、修复方案「Flyway V1～V3」 | 实际迁移 V1~V5（V4 空中性能表、V5 速度规整），文档版本数滞后 |
-| D4 | 中 | `EventStreamService.java`（无 heartbeat） | 详细设计 §8.6「heartbeat：服务时间；用于发现断线」 | heartbeat 事件前后端均未实现，断线发现仅靠 EventSource onerror |
+| D4 | 已排除 | `EngineStateMonitor.java`、`EngineStateMonitorTest.java` | 详细设计 §8.6「heartbeat：服务时间；用于发现断线」 | 后端每次健康轮询均发布 heartbeat，且已有测试；原报告漏检 |
 | D5 | 中 | `CreateAircraftDialog.vue`（无该字段） | 详细设计 §8.3 约束 4「经纬度或初始航路点之一」 | 后端 `CreateAircraftRequest.initialWaypoint` 已实现，前端表单缺失，界面只能走经纬度路径 |
 | D6 | 中 | `store.ts`（原生 EventSource） | §8.6/§13.5「断线后以递增退避重连」 | 未实现递增退避，依赖浏览器固定重试间隔 |
 | D7 | 低 | `ReferenceController.java` | §6「Controller 不直接访问 Mapper/网关」分层约定 | reference 模块无 Service 层，Controller 直接注入 SimulationGateway |
@@ -42,17 +52,17 @@
 | F7 | 中 | `api.ts` | 错误响应只取 message，丢弃 code/fieldErrors/requestId | 任何 400 校验失败 | 解析 fieldErrors 并逐字段展示（§8/§13 要求） |
 | F8 | 中 | `CreateAircraftDialog.vue` | `...form` 直传 + 清空经纬度产生 ''（非 null） | 用户清空经纬度输入 | 显式构造请求对象，空串归一为 null；否则 Jackson 框架级 400 绕过友好校验 |
 | F9 | 中 | `store.ts load()/connectEvents` | bootstrap 成功但 SSE 建立失败时整体落入加载错误分支；snapshot 处理中 loadInstructions 未捕获异常 | 网络抖动/重连 | 解耦 bootstrap 渲染与 SSE；void 调用加 catch |
-| F10 | 低 | `InstructionProgressService.refreshActiveInstruction:73-77` | findLatestExecuting 未按通道过滤，跨通道时"当前指令"显示错源 | 多通道并行执行 | 按通道或全局语义明确化 |
+| F10 | 已排除 | `InstructionProgressService.refreshActiveInstruction` | 详细设计 §8.4 已明确单一“当前指令”显示最近开始且仍在执行的跨通道指令 | — | 保持实现 |
 | F11 | 低 | `InstructionParser.invalid:78` | 所有语法错误统一提示「首版航向指令格式为 HDG 090」 | 任意指令语法错误 | 按指令类型返回对应格式提示 |
 | F12 | 低 | `App.vue toggleRun` | 无 catch，api.start/pause/resume 失败（503）未捕获 rejection | 引擎 UI 之外断开时点击 | 增加 catch 写入 store.error |
 | F13 | 低 | `store.ts updateEngine` | bootstrap 为 null 时构造空壳占位对象，绕过主界面 v-if 渲染空壳 | engine-state 事件先于 bootstrap | 保持 null 直至真 bootstrap |
-| F14 | 低 | `SituationMap.vue` | 单要素命中即停止遍历，重叠标牌只能选最上层 | 两机标牌重叠 | 收集全部命中或循环切换（首版可接受） |
-| F15 | 低 | 迁移 V1 列定义 | VARCHAR(16)/VARCHAR(4) 与应用校验长度（呼号 2-7、机型≤4、机场 4/8）不一致，直插可绕过 | 手工直插 | 对齐列宽或补 CHECK |
-| F16 | 低 | `App.vue:87` | 本席/全组计数恒等（同数组） | 未来多席位 | 按 assignedTerminalId 过滤本席（当前单席无功能影响） |
-| F17 | 低 | `instructionQueue.ts` | PENDING 按 sequenceNumber 降序排在执行项之前，视觉顺序与执行顺序相反 | 多 pending 时 | 确认语义后统一升序或注释 |
+| F14 | 不改 | `SituationMap.vue` | 重叠标牌只选择最上层是首版可接受交互，不构成当前正确性缺陷 | — | 后续交互迭代再评估 |
+| F15 | 不改 | 迁移 V1 列定义 | 仅手工直插可绕过应用校验；正常 API 路径已校验 | — | 不为非公开直插路径新增迁移 |
+| F16 | 不改 | `App.vue` | 首版固定单席位，本席/全组恒等符合当前范围 | — | 多席位阶段实现 |
+| F17 | 不改 | `instructionQueue.ts` | 待执行项按离当前项由近到远向上排列，已有测试锁定该视觉语义 | — | 保持实现 |
 | F18 | 低 | `InstructionProgressService.evaluateChannel:67`、`InstructionService` | executeInstruction 成功后 updateStatus 返回 0 行未检查（Java B2） | 并发/重入改状态 | 校验受影响行数 |
-| F19 | 低 | `ZeroMqSimulationGateway.health:49` | catch(RuntimeException) 覆盖不到 IOException（Java B5） | 控制通道 JSON 解析异常 | 异常边界覆盖 IOException/Throwable |
-| F20 | 低 | `AircraftService` route 空兜底 | route 为空时静默替换为 [destination]（Java B8） | 前端传空航路 | 显式校验或文档化兜底语义 |
+| F19 | 已排除 | `ZeroMqSimulationGateway.health/request` | request 已捕获 IOException 并包装为 AdapterUnavailableException（RuntimeException），health 能覆盖 | — | 原报告忽略了请求层异常包装 |
+| F20 | 已排除 | `AircraftService` route 空兜底 | route 为空时替换为 [destination] 是 CONTEXT L316/L324/L336 明确规定的首版行为 | — | 保持实现 |
 | — | 已排除 | `InstructionService.nextSequence:132-135`（Java B7） | 子代理认为 executing==null 时固定返回 1L 会撞号；主审核实该分支不可达：executeNow=immediate\|\|executingCount==0，executingCount>0 时 findExecuting 必非 null，故 executing==null 且 executeNow=false 是死代码 | — | 建议删死分支或加注释，不列为缺陷 |
 | 附注1 | 低 | `engine.py:395-398`（Adapter B-2） | OpenAP rotor 内部别名（Bob/Echo/Super）混入机型查询字典 | 查询 rotor 机型时暴露非平台码 | 与 F6 一并处理：仅暴露 fixwing 或过滤 |
 | 附注2 | 低 | `protocol.py:15-29`（Adapter B-4） | handle 入口未判 isinstance(request, dict)，非对象 JSON 时 request_id 取值先行抛错 | 非对象 JSON 请求（畸形输入） | 入口防御 |
@@ -73,7 +83,7 @@
 1. **D2（高）** snapshot 补指令队列——否则 Q23 与 §8.6 不成立
 2. **F1（高）** 队列停滞——排队指令下发失败后继续派发或显式登记失败暂停语义
 3. **D1（高，文档侧）** 性能包线"已实现"回写：CONTEXT L716、修复方案 WP-5/附录A#6、详细设计 §2.3/§5——文档与代码对齐（改文档即可，功能合理）
-4. **D4（中）** heartbeat 前后端补实现（或登记首版豁免）
+4. **D4（已排除）** heartbeat 已由 `EngineStateMonitor` 实现并覆盖测试
 5. **F2/F3/F4（中）** 实例切换、requestId 校验、仿真时间 state 守卫——协议与状态正确性
 6. **F5（中）** Adapter update 异常隔离
 7. **D5/F7/F8（中）** 创建表单补 initialWaypoint、解析 fieldErrors、空串归一化

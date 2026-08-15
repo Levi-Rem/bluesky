@@ -713,7 +713,8 @@ _避免称为_：真实雷达传感器、雷达仿真模型
 - 首版 `HDG` 直接使用并显示 BlueSky 航向值，正北在标牌格式化为 `360`；磁差换算、磁航向显示和基于磁航向的稳定完成判据作为一个完整能力后续实现，不做只换算执行或只修改显示的半套方案
 - 首版完成判据暂采用 `HDG ±2°`、`ALT ±100 ft`、`SPD ±5 kt`、`MACH ±0.01` 的单帧判断；总体设计中的稳定窗口、训练仿真时间累计和参数化规则保留为后续增量
 - 首版出现时间只校验并保存四位分钟偏移，航空器仍立即进入 BlueSky；待出现清单、绝对目标仿真时刻和按仿真时间调度后续成包实现
-- 首版暂不实现同名航路点候选消歧、坐标快照、首点跳过、性能包线校验、ICAO24 地址池、暂停期间 `WAITING_FOR_RESUME`、多选批量、`SQK/FSA`、`HDG L/R`、航路外 `DCT`、`RER`、`ORBIT/HOLD`、SSE 事件续传 ID、ArchUnit、SBOM 和席位头校验；这些总体需求继续保留，但不作为首版闭环前置条件
+- 首版已经实现基于导入 `simulator_backup` 数据的固定翼创建升限/速度包线校验、ALT 升限校验、SPD 包线校验和 VS 限幅，并在状态快照中返回当前包线；当前启用的 BlueSky 性能模型仍由 Adapter 运行时报告，非 OpenAP 模型不暴露 OpenAP 专属机型目录
+- 首版暂不实现同名航路点候选消歧、坐标快照、首点跳过、ICAO24 地址池、暂停期间 `WAITING_FOR_RESUME`、多选批量、`SQK/FSA`、`HDG L/R`、航路外 `DCT`、`RER`、`ORBIT/HOLD`、SSE 事件续传 ID、ArchUnit、SBOM 和席位头校验；这些总体需求继续保留，但不作为首版闭环前置条件
 - 首版仍采用 Java 8/Spring Boot 2.7、Python Adapter、Vue 3、REST/SSE 和 MySQL 技术边界；BlueSky 继续只作为飞行仿真引擎，不允许为了首版快捷而让前端直接调用 BlueSky
 - 首版正式运行只包含三个服务部分：独立 MySQL 服务、一个装配 Python Adapter 与无界面 BlueSky 的仿真进程，以及一个托管 Vue 构建产物并提供 REST/SSE 的 Spring Boot 进程；浏览器只访问 Spring Boot
 - Vite 只用于前端开发和构建，不进入正式一键启动拓扑；一键启动依次检查 MySQL、启动 Python 仿真进程、启动并检查 Spring Boot，最后打开模拟飞行员工作台

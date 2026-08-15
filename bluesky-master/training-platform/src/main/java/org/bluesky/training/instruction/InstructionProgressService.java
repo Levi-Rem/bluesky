@@ -37,11 +37,15 @@ public class InstructionProgressService {
 
     private void evaluateChannel(AircraftRow aircraft, JsonNode actualState, String channel) {
         InstructionRow current = instructionMapper.findExecuting(aircraft.getId(), channel);
-        if (current == null || !isComplete(current, actualState)) return;
-
-        instructionMapper.updateStatus(current.getId(), "COMPLETED");
-        current.setStatus("COMPLETED");
-        eventStreamService.publishAfterCommit("instruction-upserted", new InstructionResponse(current));
+        if (current != null) {
+            if (!isComplete(current, actualState)) return;
+            requireSingleUpdate(
+                    instructionMapper.updateStatus(current.getId(), "COMPLETED"),
+                    "完成指令", current.getId());
+            current.setStatus("COMPLETED");
+            eventStreamService.publishAfterCommit(
+                    "instruction-upserted", new InstructionResponse(current));
+        }
 
         InstructionRow next = instructionMapper.findNextPending(aircraft.getId(), channel);
         if (next == null) {
@@ -64,10 +68,19 @@ public class InstructionProgressService {
             eventStreamService.publishAfterCommit("instruction-upserted", new InstructionResponse(next));
             return;
         }
-        instructionMapper.updateStatus(next.getId(), "EXECUTING");
+        requireSingleUpdate(
+                instructionMapper.updateStatus(next.getId(), "EXECUTING"),
+                "启动排队指令", next.getId());
         next.setStatus("EXECUTING");
         instructionMapper.updateActiveInstruction(aircraft.getId(), next.getRawText());
         eventStreamService.publishAfterCommit("instruction-upserted", new InstructionResponse(next));
+    }
+
+    private void requireSingleUpdate(int updatedRows, String action, String instructionId) {
+        if (updatedRows != 1) {
+            throw new IllegalStateException(
+                    action + "失败，指令状态已发生并发变化: " + instructionId);
+        }
     }
 
     private void refreshActiveInstruction(String aircraftId) {

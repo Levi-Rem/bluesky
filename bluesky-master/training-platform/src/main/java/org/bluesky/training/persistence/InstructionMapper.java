@@ -22,6 +22,9 @@ public interface InstructionMapper {
     @Select("SELECT id, exercise_aircraft_id, raw_text, instruction_type, control_channel, insertion_mode, status, sequence_number, parsed_payload, failure_code, failure_message FROM aircraft_instruction WHERE exercise_aircraft_id = #{aircraftId} ORDER BY sequence_number, created_at")
     List<InstructionRow> findAll(String aircraftId);
 
+    @Select("SELECT i.id, i.exercise_aircraft_id, i.raw_text, i.instruction_type, i.control_channel, i.insertion_mode, i.status, i.sequence_number, i.parsed_payload, i.failure_code, i.failure_message FROM aircraft_instruction i JOIN exercise_aircraft a ON a.id = i.exercise_aircraft_id WHERE a.exercise_group_id = 'GROUP-DEFAULT' ORDER BY i.exercise_aircraft_id, i.sequence_number, i.created_at")
+    List<InstructionRow> findAllDefaultGroup();
+
     @Select("SELECT id, exercise_aircraft_id, raw_text, instruction_type, control_channel, insertion_mode, status, sequence_number, parsed_payload, failure_code, failure_message FROM aircraft_instruction WHERE exercise_aircraft_id = #{aircraftId} AND control_channel = #{channel} AND status = 'EXECUTING' ORDER BY sequence_number LIMIT 1")
     InstructionRow findExecuting(String aircraftId, String channel);
 

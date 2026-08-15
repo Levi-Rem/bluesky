@@ -4,6 +4,7 @@ import org.bluesky.training.persistence.InstructionRow;
 
 public final class InstructionResponse {
     private final String id;
+    private final String aircraftId;
     private final String text;
     private final String type;
     private final String insertion;
@@ -14,6 +15,7 @@ public final class InstructionResponse {
 
     public InstructionResponse(InstructionRow row) {
         this.id = row.getId();
+        this.aircraftId = row.getExerciseAircraftId();
         this.text = row.getRawText();
         this.type = row.getInstructionType();
         this.insertion = row.getInsertionMode();
@@ -24,6 +26,7 @@ public final class InstructionResponse {
     }
 
     public String getId() { return id; }
+    public String getAircraftId() { return aircraftId; }
     public String getText() { return text; }
     public String getType() { return type; }
     public String getInsertion() { return insertion; }

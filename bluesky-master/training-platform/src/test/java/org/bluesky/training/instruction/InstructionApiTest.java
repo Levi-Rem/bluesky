@@ -235,9 +235,10 @@ class InstructionApiTest {
     }
 
     @Test
-    void failedNextDispatchDoesNotRollBackStateFrameOrRetryForever() throws Exception {
+    void failedNextDispatchDoesNotStallLaterPendingInstruction() throws Exception {
         submit("HDG 090", "AFTER_CURRENT");
         submit("HDG 180", "APPEND");
+        submit("HDG 270", "APPEND");
         reset(simulationGateway);
         doThrow(new AdapterUnavailableException("adapter offline"))
                 .when(simulationGateway)
@@ -253,9 +254,20 @@ class InstructionApiTest {
         mockMvc.perform(get("/api/v1/aircraft/{aircraftId}/instructions", aircraftId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("COMPLETED"))
-                .andExpect(jsonPath("$[1].status").value("FAILED"));
+                .andExpect(jsonPath("$[1].status").value("FAILED"))
+                .andExpect(jsonPath("$[2].status").value("EXECUTING"));
         verify(simulationGateway, times(1)).executeInstruction(argThat(command ->
                 "HDG".equals(command.getType()) && command.getHeadingDegrees() == 180.0));
+        verify(simulationGateway).executeInstruction(argThat(command ->
+                "HDG".equals(command.getType()) && command.getHeadingDegrees() == 270.0));
+    }
+
+    @Test
+    void reportsTheSyntaxExpectedForTheEnteredInstructionType() throws Exception {
+        submitExpectingError("RTE", "AFTER_CURRENT")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].message")
+                        .value("航路指令格式为 RTE CEN CON ZBAA"));
     }
 
     @Test

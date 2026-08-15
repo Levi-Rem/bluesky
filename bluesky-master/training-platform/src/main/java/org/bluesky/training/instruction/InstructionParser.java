@@ -22,7 +22,7 @@ public class InstructionParser {
                         new EngineInstructionCommand(callsign, "HDG", heading, null, null,
                                 null, null, null, Collections.emptyList()));
             } catch (NumberFormatException exception) {
-                throw invalid();
+                throw invalid("HDG");
             }
         }
         if ((tokens.length == 2 || tokens.length == 4) && "ALT".equals(tokens[0])) {
@@ -71,11 +71,28 @@ public class InstructionParser {
                     new EngineInstructionCommand(callsign, "RTE", null, null, null,
                             null, null, null, route));
         }
-        throw invalid();
+        throw invalid(tokens.length == 0 ? "" : tokens[0]);
     }
 
-    private FieldValidationException invalid() {
-        return new FieldValidationException("text", "首版航向指令格式为 HDG 090");
+    private FieldValidationException invalid(String type) {
+        switch (type) {
+            case "HDG":
+                return new FieldValidationException("text", "航向指令格式为 HDG 090");
+            case "ALT":
+                return new FieldValidationException(
+                        "text", "高度指令格式为 ALT 12000 或 ALT 12000 VS 1000");
+            case "SPD":
+            case "MACH":
+                return new FieldValidationException(
+                        "text", "速度指令格式为 SPD 250 或 MACH 0.78");
+            case "DCT":
+                return new FieldValidationException("text", "直飞指令格式为 DCT ZBAA");
+            case "RTE":
+                return new FieldValidationException("text", "航路指令格式为 RTE CEN CON ZBAA");
+            default:
+                return new FieldValidationException(
+                        "text", "支持的指令格式为 HDG、ALT、SPD、MACH、DCT 或 RTE");
+        }
     }
 
     public static final class ParsedInstruction {

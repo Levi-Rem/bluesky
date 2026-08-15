@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import logging
+import os
 import signal
 import threading
 import time
@@ -15,12 +17,19 @@ from .engine import BlueSkyEngine
 from .protocol import AdapterProtocol
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="BlueSky training platform adapter")
     parser.add_argument(
-        "--control-endpoint", default="tcp://127.0.0.1:5555"
+        "--control-endpoint",
+        default=os.environ.get("BS_ADAPTER_CONTROL_ENDPOINT", "tcp://127.0.0.1:5555"),
     )
-    parser.add_argument("--state-endpoint", default="tcp://127.0.0.1:5556")
+    parser.add_argument(
+        "--state-endpoint",
+        default=os.environ.get("BS_ADAPTER_STATE_ENDPOINT", "tcp://127.0.0.1:5556"),
+    )
     parser.add_argument("--workdir", default=str(Path.cwd()))
     return parser
 
@@ -74,7 +83,10 @@ def run(args: argparse.Namespace) -> int:
                         "utf-8"
                     )
                 )
-            engine.update()
+            try:
+                engine.update()
+            except Exception:
+                LOGGER.exception("BlueSky engine update failed; adapter loop will continue")
             now = time.monotonic()
             if now >= next_state_publish:
                 sequence += 1

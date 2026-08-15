@@ -55,6 +55,25 @@ class FakeEngine:
 
 
 class AdapterProtocolTest(unittest.TestCase):
+    def test_rejects_non_object_requests_and_other_exercise_groups(self):
+        protocol = AdapterProtocol(FakeEngine())
+
+        non_object = protocol.handle([])
+        other_group = protocol.handle(
+            {
+                "protocolVersion": "1.0",
+                "requestId": "other-group",
+                "type": "PING",
+                "exerciseGroupId": "GROUP-OTHER",
+                "payload": {},
+            }
+        )
+
+        self.assertFalse(non_object["success"])
+        self.assertEqual("INVALID_REQUEST", non_object["code"])
+        self.assertFalse(other_group["success"])
+        self.assertEqual("UNSUPPORTED_EXERCISE_GROUP", other_group["code"])
+
     def test_ping_returns_versioned_engine_health(self):
         protocol = AdapterProtocol(FakeEngine())
 

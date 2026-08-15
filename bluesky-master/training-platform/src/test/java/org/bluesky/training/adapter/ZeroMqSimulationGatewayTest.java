@@ -29,14 +29,15 @@ class ZeroMqSimulationGatewayTest {
                 server.setLinger(0);
                 server.bind(endpoint);
                 byte[] request = server.recv(0);
-                server.send(("{\"protocolVersion\":\"1.0\","
+                String requestJson = new String(request, StandardCharsets.UTF_8);
+                server.send(withRequestId("{\"protocolVersion\":\"1.0\","
                         + "\"requestId\":\"accepted\",\"success\":true,\"code\":\"OK\","
                         + "\"message\":\"\",\"payload\":{\"connected\":true,"
                         + "\"status\":\"CONNECTED\",\"performanceModel\":\"OPENAP\","
-                        + "\"message\":\"BlueSky 已连接\"}}")
+                        + "\"message\":\"BlueSky 已连接\"}}", requestJson)
                         .getBytes(StandardCharsets.UTF_8), 0);
                 server.close();
-                return new String(request, StandardCharsets.UTF_8);
+                return requestJson;
             });
 
             try (ZeroMqSimulationGateway gateway =
@@ -96,6 +97,16 @@ class ZeroMqSimulationGatewayTest {
         assertThat(exchange.body).contains("\"type\":\"START\"");
     }
 
+    @Test
+    void rejectsAResponseForAnotherRequest() {
+        assertThatThrownBy(() -> exchangeFor(
+                "{\"protocolVersion\":\"1.0\",\"requestId\":\"wrong-request\","
+                        + "\"success\":true,\"code\":\"OK\",\"message\":\"\",\"payload\":{}}",
+                gateway -> gateway.start()))
+                .isInstanceOf(AdapterUnavailableException.class)
+                .hasMessageContaining("requestId");
+    }
+
     private RecordedRequest exchangeFor(String response, GatewayCall call) throws Exception {
         int port;
         try (ServerSocket socket = new ServerSocket(0)) {
@@ -108,15 +119,26 @@ class ZeroMqSimulationGatewayTest {
                 server.setLinger(0);
                 server.bind(endpoint);
                 byte[] request = server.recv(0);
-                server.send(response.getBytes(StandardCharsets.UTF_8), 0);
+                String requestJson = new String(request, StandardCharsets.UTF_8);
+                server.send(withRequestId(response, requestJson).getBytes(StandardCharsets.UTF_8), 0);
                 server.close();
-                return new String(request, StandardCharsets.UTF_8);
+                return requestJson;
             });
             try (ZeroMqSimulationGateway gateway =
                          new ZeroMqSimulationGateway(endpoint, 2000, new ObjectMapper())) {
                 call.invoke(gateway);
             }
             return new RecordedRequest(body.get(2, TimeUnit.SECONDS));
+        }
+    }
+
+    private static String withRequestId(String response, String request) {
+        try {
+            String requestId = new ObjectMapper().readTree(request).path("requestId").asText();
+            return response.replace("\"requestId\":\"accepted\"",
+                    "\"requestId\":\"" + requestId + "\"");
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot read test request", exception);
         }
     }
 

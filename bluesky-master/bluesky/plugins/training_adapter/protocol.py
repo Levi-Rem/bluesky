@@ -13,12 +13,20 @@ class AdapterProtocol:
         self._engine = engine
 
     def handle(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(request, dict):
+            return self._failure("", "INVALID_REQUEST", "请求必须是 JSON 对象")
         request_id = str(request.get("requestId", ""))
         if request.get("protocolVersion") != PROTOCOL_VERSION:
             return self._failure(
                 request_id,
                 "UNSUPPORTED_PROTOCOL_VERSION",
                 "仅支持协议版本 1.0",
+            )
+        if request.get("exerciseGroupId") != "GROUP-DEFAULT":
+            return self._failure(
+                request_id,
+                "UNSUPPORTED_EXERCISE_GROUP",
+                "首版只支持默认训练组 GROUP-DEFAULT",
             )
 
         try:

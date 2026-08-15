@@ -3,8 +3,10 @@ package org.bluesky.training.workstation;
 import org.bluesky.training.adapter.EngineHealth;
 import org.bluesky.training.adapter.SimulationGateway;
 import org.bluesky.training.aircraft.AircraftService;
+import org.bluesky.training.instruction.InstructionResponse;
 import org.bluesky.training.persistence.BootstrapMapper;
 import org.bluesky.training.persistence.ExerciseGroupRow;
+import org.bluesky.training.persistence.InstructionMapper;
 import org.bluesky.training.persistence.TerminalRow;
 import org.springframework.stereotype.Service;
 
@@ -17,12 +19,14 @@ public class WorkstationService {
     private final BootstrapMapper bootstrapMapper;
     private final SimulationGateway simulationGateway;
     private final AircraftService aircraftService;
+    private final InstructionMapper instructionMapper;
 
     public WorkstationService(BootstrapMapper bootstrapMapper, SimulationGateway simulationGateway,
-                              AircraftService aircraftService) {
+                              AircraftService aircraftService, InstructionMapper instructionMapper) {
         this.bootstrapMapper = bootstrapMapper;
         this.simulationGateway = simulationGateway;
         this.aircraftService = aircraftService;
+        this.instructionMapper = instructionMapper;
     }
 
     public WorkstationBootstrapResponse bootstrap() {
@@ -40,7 +44,10 @@ public class WorkstationService {
                         parameters.get("ui.theme"),
                         parameters.get("ui.trackColor"),
                         parameters.get("ui.selectedTrackColor")),
-                aircraftService.list("GROUP-DEFAULT"));
+                aircraftService.list("GROUP-DEFAULT"),
+                instructionMapper.findAllDefaultGroup().stream()
+                        .map(InstructionResponse::new)
+                        .collect(java.util.stream.Collectors.toList()));
     }
 
     private Map<String, String> parametersByKey(List<Map<String, String>> rows) {

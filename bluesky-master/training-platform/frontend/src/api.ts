@@ -1,11 +1,36 @@
 import type { Bootstrap, ExerciseGroup, Instruction, ReferenceItem } from './types'
 import type { InsertionMode } from './commandKeys'
 
+export interface ApiFieldError {
+  field: string
+  message: string
+}
+
+export class ApiClientError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+    readonly fieldErrors: ApiFieldError[] = [],
+    readonly requestId?: string
+  ) {
+    super(message)
+    this.name = 'ApiClientError'
+  }
+}
+
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ message: response.statusText }))
-    throw new Error(body.message ?? `请求失败: ${response.status}`)
+    const body = await response.json().catch(() => ({ message: response.statusText })) as {
+      code?: string; message?: string; fieldErrors?: ApiFieldError[]; requestId?: string
+    }
+    const fieldErrors = Array.isArray(body.fieldErrors) ? body.fieldErrors : []
+    const detail = fieldErrors.map(item => `${item.field}: ${item.message}`).join('；')
+    throw new ApiClientError(
+      detail || body.message || `请求失败: ${response.status}`,
+      response.status, body.code, fieldErrors, body.requestId
+    )
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>

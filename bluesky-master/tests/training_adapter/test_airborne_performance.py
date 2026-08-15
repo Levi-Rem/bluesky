@@ -1,8 +1,10 @@
 import unittest
+from types import SimpleNamespace
 
 from bluesky.plugins.training_adapter.airborne_performance import (
     AirbornePerformanceCatalog,
 )
+from bluesky.plugins.training_adapter.engine import BlueSkyEngine
 
 
 class AirbornePerformanceCatalogTest(unittest.TestCase):
@@ -44,6 +46,25 @@ class AirbornePerformanceCatalogTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "升限"):
             catalog.envelope("A320", 12600.0, "CRUISE")
+
+    def test_engine_handles_non_openap_models_without_coefficients(self):
+        engine = object.__new__(BlueSkyEngine)
+        engine._bs = SimpleNamespace(
+            traf=SimpleNamespace(perf=SimpleNamespace())
+        )
+
+        self.assertEqual(set(), engine._supported_aircraft_types())
+
+    def test_engine_exposes_only_fixed_wing_type_codes(self):
+        engine = object.__new__(BlueSkyEngine)
+        engine._bs = SimpleNamespace(
+            traf=SimpleNamespace(perf=SimpleNamespace(coeff=SimpleNamespace(
+                actypes_fixwing=["A320", "B738"],
+                actypes_rotor=["Bob", "Echo", "Super"],
+            )))
+        )
+
+        self.assertEqual({"A320", "B738"}, engine._supported_aircraft_types())
 
 
 if __name__ == "__main__":

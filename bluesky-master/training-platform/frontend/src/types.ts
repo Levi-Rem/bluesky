@@ -36,6 +36,7 @@ export interface Aircraft {
 
 export interface Instruction {
   id: string
+  aircraftId: string
   text: string
   type: string
   insertion: InsertionMode
@@ -57,6 +58,7 @@ export interface Bootstrap {
   exerciseGroup: ExerciseGroup
   engine: EngineState
   aircraft: Aircraft[]
+  instructions: Instruction[]
   uiParameters: {
     theme: string
     trackColor: string

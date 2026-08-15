@@ -37,6 +37,8 @@ async function toggleRun() {
     if (group.value.state === 'READY') store.bootstrap!.exerciseGroup = await api.start()
     else if (group.value.state === 'RUNNING') store.bootstrap!.exerciseGroup = await api.pause()
     else store.bootstrap!.exerciseGroup = await api.resume()
+  } catch (reason) {
+    store.error = reason instanceof Error ? reason.message : String(reason)
   } finally { busy.value = false }
 }
 

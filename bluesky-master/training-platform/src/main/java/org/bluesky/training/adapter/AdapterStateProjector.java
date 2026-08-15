@@ -9,6 +9,7 @@ import org.bluesky.training.instruction.InstructionProgressService;
 import org.bluesky.training.persistence.AircraftMapper;
 import org.bluesky.training.persistence.AircraftRow;
 import org.bluesky.training.persistence.BootstrapMapper;
+import org.bluesky.training.persistence.ExerciseGroupRow;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Component
 public class AdapterStateProjector {
     private static final String PROTOCOL_VERSION = "1.0";
+    private static final String DEFAULT_GROUP_ID = "GROUP-DEFAULT";
 
     private final ObjectMapper objectMapper;
     private final AircraftMapper aircraftMapper;
@@ -57,6 +59,9 @@ public class AdapterStateProjector {
         if (!PROTOCOL_VERSION.equals(frame.path("protocolVersion").asText())) {
             return;
         }
+        if (!DEFAULT_GROUP_ID.equals(frame.path("exerciseGroupId").asText())) {
+            return;
+        }
         String instanceId = frame.path("instanceId").asText("legacy");
         long sequence = frame.path("sequence").asLong(-1L);
         if (!isNewSequence(instanceId, sequence)) {
@@ -75,10 +80,14 @@ public class AdapterStateProjector {
     }
 
     private Projection persist(JsonNode frame) {
-        bootstrapMapper.updateSimulationTime(Math.max(0L,
-                Math.round(frame.path("simulationTimeSeconds").asDouble(0.0))));
+        ExerciseGroupRow group = bootstrapMapper.findDefaultGroup();
+        if ("RUNNING".equals(group.getState())) {
+            bootstrapMapper.updateSimulationTime(Math.max(0L,
+                    Math.round(frame.path("simulationTimeSeconds").asDouble(0.0))));
+            group = bootstrapMapper.findDefaultGroup();
+        }
         Projection projection = new Projection(
-                new ExerciseGroupResponse(bootstrapMapper.findDefaultGroup()));
+                new ExerciseGroupResponse(group));
         for (JsonNode state : frame.path("aircraft")) {
             ProjectedAircraft aircraft = projectAircraft(state);
             if (aircraft != null) projection.aircraft.add(aircraft);
@@ -95,7 +104,15 @@ public class AdapterStateProjector {
             if (!previous.isEmpty()) {
                 retiredInstanceIds.add(previous);
             }
+            if (sequence < 0L) {
+                lastInstanceId.set(instanceId);
+                lastSequence.set(-1L);
+                return false;
+            }
             return sequence >= 0L;
+        }
+        if (retiredInstanceIds.contains(instanceId)) {
+            return false;
         }
         return sequence > lastSequence.get();
     }

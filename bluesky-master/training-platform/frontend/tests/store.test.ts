@@ -1,8 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useWorkstationStore } from '../src/store'
-import type { Instruction } from '../src/types'
+import type { Bootstrap, Instruction } from '../src/types'
 import type { EngineState } from '../src/types'
+
+class FakeEventSource {
+  static instances: FakeEventSource[] = []
+  onerror: (() => void) | null = null
+  onopen: (() => void) | null = null
+  constructor(readonly url: string) { FakeEventSource.instances.push(this) }
+  addEventListener() {}
+  close() {}
+}
 
 const apiMock = vi.hoisted(() => ({
   bootstrap: vi.fn(), instructions: vi.fn(), deleteAircraft: vi.fn()
@@ -14,14 +23,17 @@ describe('workstation instruction projection', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    FakeEventSource.instances = []
+    vi.stubGlobal('EventSource', FakeEventSource)
   })
 
   it('upserts the REST result and matching SSE event as one queue item', () => {
     const store = useWorkstationStore()
     const executing: Instruction = {
-      id: 'instruction-1', text: 'HDG 090', type: 'HDG', insertion: 'AFTER_CURRENT',
+      id: 'instruction-1', aircraftId: 'aircraft-a', text: 'HDG 090', type: 'HDG', insertion: 'AFTER_CURRENT',
       status: 'EXECUTING', sequenceNumber: 1
     }
+    store.selectedAircraftId = 'aircraft-a'
     store.upsertInstruction(executing)
     store.upsertInstruction({ ...executing, status: 'COMPLETED' })
 
@@ -37,8 +49,7 @@ describe('workstation instruction projection', () => {
 
     store.updateEngine(disconnected)
 
-    expect(store.bootstrap?.engine.connected).toBe(false)
-    expect(store.bootstrap?.engine.message).toBe('连接超时')
+    expect(store.bootstrap).toBeNull()
   })
 
   it('surfaces a bootstrap failure instead of spinning forever', async () => {
@@ -50,6 +61,34 @@ describe('workstation instruction projection', () => {
     expect(store.loading).toBe(false)
     expect(store.bootstrap).toBeNull()
     expect(store.error).toBe('平台不可用')
+  })
+
+  it('restores the selected aircraft queue directly from a snapshot', async () => {
+    const snapshot = bootstrapWithAircraft()
+    snapshot.instructions = [instruction('a'), instruction('b', 'aircraft-b')]
+    apiMock.bootstrap.mockResolvedValueOnce(snapshot)
+    const store = useWorkstationStore()
+
+    await store.load()
+
+    expect(store.selectedAircraftId).toBe('aircraft-a')
+    expect(store.instructions.map(item => item.id)).toEqual(['a'])
+    expect(apiMock.instructions).not.toHaveBeenCalled()
+    expect(FakeEventSource.instances).toHaveLength(1)
+  })
+
+  it('reconnects the event stream with an explicit backoff', async () => {
+    vi.useFakeTimers()
+    apiMock.bootstrap.mockResolvedValueOnce(bootstrapWithAircraft())
+    const store = useWorkstationStore()
+    await store.load()
+
+    FakeEventSource.instances[0].onerror?.()
+    expect(store.error).toContain('自动重连')
+    expect(FakeEventSource.instances).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(FakeEventSource.instances).toHaveLength(2)
+    vi.useRealTimers()
   })
 
   it('does not let an older aircraft selection overwrite the current queue', async () => {
@@ -84,14 +123,14 @@ describe('workstation instruction projection', () => {
   })
 })
 
-function instruction(id: string): Instruction {
+function instruction(id: string, aircraftId = 'aircraft-a'): Instruction {
   return {
-    id, text: 'HDG 090', type: 'HDG', insertion: 'AFTER_CURRENT',
+    id, aircraftId, text: 'HDG 090', type: 'HDG', insertion: 'AFTER_CURRENT',
     status: 'EXECUTING', sequenceNumber: 1
   }
 }
 
-function bootstrapWithAircraft() {
+function bootstrapWithAircraft(): Bootstrap {
   return {
     terminal: { id: 'PP-DEFAULT', name: 'default' },
     exerciseGroup: { id: 'GROUP-DEFAULT', name: 'default', state: 'READY' as const, simulationTimeSeconds: 0 },
@@ -102,6 +141,7 @@ function bootstrapWithAircraft() {
       appearanceOffsetMinutes: 0, latitude: 31, longitude: 121, headingDegrees: 90,
       altitudeFeet: 9000, speedKnots: 250, verticalSpeedFeetPerMinute: 0, route: ['ZBAA']
     })),
+    instructions: [],
     uiParameters: { theme: 'DEFAULT_DARK', trackColor: '#fff', selectedTrackColor: '#ff0' }
   }
 }

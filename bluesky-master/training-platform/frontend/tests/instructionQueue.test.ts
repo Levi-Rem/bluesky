@@ -3,7 +3,7 @@ import { arrangeInstructionQueue } from '../src/instructionQueue'
 import type { Instruction } from '../src/types'
 
 const item = (id: string, status: Instruction['status'], sequenceNumber: number): Instruction => ({
-  id, text: id, type: 'HDG', insertion: 'AFTER_CURRENT', status, sequenceNumber
+  id, aircraftId: 'aircraft-a', text: id, type: 'HDG', insertion: 'AFTER_CURRENT', status, sequenceNumber
 })
 
 describe('compact instruction queue arrangement', () => {

@@ -392,9 +392,7 @@ class BlueSkyEngine:
             return {"kind": kind, "items": items}
 
         if kind == "AIRCRAFT_TYPE":
-            coefficient = self._bs.traf.perf.coeff
-            supported = {str(name).upper() for name in coefficient.actypes_fixwing}
-            supported.update(str(name).upper() for name in coefficient.actypes_rotor)
+            supported = self._supported_aircraft_types()
             matches = sorted(code for code in supported if not query or query in code)
             return {
                 "kind": kind,
@@ -491,11 +489,22 @@ class BlueSkyEngine:
                 raise ValueError("未知航路点或机场: {}".format(name))
 
     def _validate_aircraft_type(self, aircraft_type):
-        coefficient = self._bs.traf.perf.coeff
-        supported = {str(name).upper() for name in coefficient.actypes_fixwing}
-        supported.update(str(name).upper() for name in coefficient.actypes_rotor)
+        supported = self._supported_aircraft_types()
+        if not supported:
+            raise ValueError("当前 BlueSky 性能模型不提供可用的固定翼机型目录")
         if aircraft_type not in supported:
             raise ValueError("未知机型: {}".format(aircraft_type))
+
+    def _supported_aircraft_types(self):
+        coefficient = getattr(self._bs.traf.perf, "coeff", None)
+        if coefficient is None:
+            return set()
+        # 首版训练平台只创建固定翼航空器。OpenAP 的 rotor 集合还包含
+        # Bob/Echo/Super 等内部别名，不能作为平台机型代码暴露。
+        return {
+            str(name).upper()
+            for name in getattr(coefficient, "actypes_fixwing", ())
+        }
 
     def _validate_airport(self, airport, field_name):
         if not airport or self._bs.navdb.getaptidx(airport) < 0:
