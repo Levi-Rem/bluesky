@@ -1,0 +1,35 @@
+server:
+  port: ${BS_PLATFORM_PORT:8080}
+
+spring:
+  application:
+    name: bluesky-training-platform
+  datasource:
+    url: jdbc:mysql://${BS_MYSQL_HOST:127.0.0.1}:${BS_MYSQL_PORT:3306}/${BS_MYSQL_DATABASE:bluesky_training}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${BS_MYSQL_USERNAME:bluesky}
+    password: ${BS_MYSQL_PASSWORD:bluesky}
+  flyway:
+    enabled: true
+  mvc:
+    async:
+      request-timeout: 0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+bluesky:
+  adapter:
+    control-endpoint: ${BS_ADAPTER_CONTROL_ENDPOINT:tcp://127.0.0.1:5555}
+    state-endpoint: ${BS_ADAPTER_STATE_ENDPOINT:tcp://127.0.0.1:5556}
+    request-timeout-millis: ${BS_ADAPTER_TIMEOUT_MS:2000}
+    state-subscription-enabled: ${BS_ADAPTER_STATE_SUBSCRIPTION_ENABLED:true}

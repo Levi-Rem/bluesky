@@ -37,3 +37,14 @@ eggs/
 sdist/
 *.manifest
 *.spec
+
+# Local analysis artifacts
+tmp/
+sql_backup/
+
+# Training platform dependencies and runtime state
+bluesky-master/training-platform/frontend/node_modules/
+bluesky-master/training-platform/src/main/resources/static/
+bluesky-master/training-platform/data/
+bluesky-master/training-platform/.platform-processes.json
+bluesky-master/.env.local
