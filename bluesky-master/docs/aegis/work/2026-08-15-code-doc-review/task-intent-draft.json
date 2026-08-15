@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "requestedOutcome": "对照文档审阅代码，找出差异与缺陷，输出审阅报告",
+  "goal": "对照文档审阅代码，找出差异与缺陷，输出审阅报告",
+  "successEvidence": [],
+  "stopCondition": "Stop when success evidence is satisfied or a blocker/risk requires pause.",
+  "nonGoals": [],
+  "scope": "bluesky-master 全仓库代码 vs docs/ADRs/CONTEXT/设计文档",
+  "changeKinds": [
+    "review"
+  ],
+  "riskHints": []
+}

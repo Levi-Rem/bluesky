@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "aegis.schema.v0",
+  "taskId": "2026-08-15-code-doc-review",
+  "taskIntentRef": "docs/aegis/work/2026-08-15-code-doc-review/task-intent-draft.json",
+  "baselineRefs": [],
+  "scopeStatus": "not-yet-verified",
+  "compatStatus": "not-yet-verified",
+  "retirementStatus": "not-yet-verified",
+  "newRiskSignals": [],
+  "decision": "needs-verification"
+}
