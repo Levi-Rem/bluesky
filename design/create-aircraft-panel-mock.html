@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  :root { font-family: Inter, "Microsoft YaHei", sans-serif; color: #dbe9ef; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1600px; height: 900px; overflow: hidden; background: #07141c; }
+  .workstation { position: relative; width: 1600px; height: 900px; background: #07141c; }
+  .situation-map { position: absolute; inset: 0; background-color: #07141c;
+    background-image: radial-gradient(#18313a 1px, transparent 1px); background-size: 28px 28px; }
+  .panel { background: rgba(6, 19, 27, .88); border: 1px solid rgba(90, 151, 174, .34);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .28); backdrop-filter: blur(7px); }
+
+  .top-bar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex;
+    align-items: center; gap: 18px; min-height: 40px; padding: 5px 9px; border-radius: 6px;
+    font: 14px Consolas, monospace; }
+  .run-button { width: 30px; height: 28px; border-radius: 4px; background: rgba(53, 166, 110, .25);
+    color: #8ef1b8; border: 0; font-size: 13px; }
+  .engine-light { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 8px currentColor;
+    color: #49d58a; background: currentColor; }
+  .muted { color: #76909a; }
+
+  .aircraft-list { position: absolute; top: 68px; bottom: 82px; left: 12px; width: 270px;
+    border-radius: 6px; overflow: auto; font: 12px/1.45 Consolas, monospace; }
+  .aircraft-list-actions { position: sticky; top: 0; display: flex; justify-content: space-between;
+    padding: 4px; background: rgba(6, 19, 27, .96); z-index: 1; }
+  .icon-button { color: #58d7ff; font-size: 20px; padding: 0 7px; background: transparent; border: 0; }
+  .aircraft-row-wrap { position: relative; border-bottom: 1px solid rgba(90, 151, 174, .12); }
+  .aircraft-row { display: block; width: 100%; padding: 7px 24px 7px 8px; text-align: left;
+    border: 0; background: transparent; font: 12px/1.45 Consolas, monospace; color: inherit; }
+  .aircraft-row span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .selected { color: #ffe66d; background: rgba(255, 230, 109, .08); }
+
+  .command-dock { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: flex-end; gap: 7px; }
+  .command-dock input { width: 620px; height: 39px; padding: 0 12px; color: #edf7fa;
+    border: 1px solid rgba(90, 151, 174, .5); border-radius: 5px; outline: none;
+    background: rgba(5, 17, 24, .94); font: 14px Consolas, monospace; text-transform: uppercase; }
+  .instruction-queue { width: 12ch; border-radius: 5px; font: 12px/1.6 Consolas, monospace;
+    background: rgba(6, 19, 27, .88); border: 1px solid rgba(90, 151, 174, .34); }
+  .queue-item { padding: 2px 5px; }
+  .executing { background: rgba(75, 197, 126, .28); color: #8ef1b8; }
+
+  .aircraft-form { position: absolute; z-index: 20; width: 476px; padding: 10px; border-radius: 7px; }
+  .form-header { display: flex; align-items: center; justify-content: space-between;
+    margin: -10px -10px 8px; padding: 5px 7px 5px 10px; border-bottom: 1px solid rgba(90, 151, 174, .25);
+    background: rgba(10, 32, 42, .95); cursor: grab; border-radius: 7px 7px 0 0; }
+  .form-title { font-size: 11px; letter-spacing: 2px; color: #a8c6d1; }
+  .grip { color: #4d6b77; letter-spacing: 2px; font-size: 11px; margin-right: 8px; }
+  .form-close { border: 0; background: transparent; color: #78909a; padding: 2px 6px; font-size: 12px; }
+  .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .form-grid label { display: grid; gap: 3px; color: #8ea9b3; font-size: 10px; }
+  .form-grid input { min-width: 0; padding: 4px; color: #e5f2f6; border: 1px solid #284550;
+    border-radius: 3px; background: #081921; font: 11px Consolas, monospace; }
+  .wide { grid-column: 1 / -1; }
+  .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .form-actions button { padding: 4px 10px; border: 1px solid #345663; border-radius: 3px;
+    background: #102832; color: #dbe9ef; }
+  .primary { background: #16414f; border-color: #3f7386; color: #a8e4f5; }
+
+  .anno { position: absolute; z-index: 30; display: flex; align-items: center; gap: 6px;
+    font: 12px Inter, "Microsoft YaHei", sans-serif; color: #ffd166; }
+  .anno b { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 1.5px dashed #ffd166;
+    display: grid; place-items: center; font-size: 12px; background: rgba(7, 20, 28, .85); }
+  .anno i { font-style: normal; background: rgba(7, 20, 28, .9); padding: 3px 8px; border-radius: 4px;
+    border: 1px solid rgba(255, 209, 102, .35); white-space: nowrap; }
+  .ghost { position: absolute; border: 1.5px dashed rgba(255, 209, 102, .55); border-radius: 8px;
+    width: 400px; height: 250px; z-index: 5; }
+</style>
+</head>
+<body>
+<div class="workstation">
+  <div class="situation-map">
+    <svg width="1600" height="900" style="position:absolute">
+      <path d="M 1050 240 L 1180 380 L 1310 300" stroke="#3d6b7a" stroke-width="1.5" fill="none" stroke-dasharray="6 5"/>
+      <path d="M 980 620 L 1120 660 L 1250 560 L 1400 480" stroke="#3d6b7a" stroke-width="1.5" fill="none" stroke-dasharray="6 5"/>
+      <g transform="translate(1050,240)"><path d="M 0 -7 L 6 7 L -6 7 Z" fill="none" stroke="#58d7ff" stroke-width="1.5"/>
+        <text x="10" y="-4" fill="#58d7ff" font-size="12" font-family="Consolas">CCA3582</text>
+        <text x="10" y="10" fill="#76909a" font-size="11" font-family="Consolas">A320 090 9000</text></g>
+      <g transform="translate(1180,380) rotate(40)"><path d="M 0 -7 L 6 7 L -6 7 Z" fill="none" stroke="#58d7ff" stroke-width="1.5"/>
+        <text x="10" y="-4" fill="#58d7ff" font-size="12" font-family="Consolas">CES2107</text>
+        <text x="10" y="10" fill="#76909a" font-size="11" font-family="Consolas">B738 270 10400</text></g>
+      <g transform="translate(1120,660) rotate(-20)"><path d="M 0 -7 L 6 7 L -6 7 Z" fill="none" stroke="#ffe66d" stroke-width="1.5"/>
+        <text x="10" y="-4" fill="#ffe66d" font-size="12" font-family="Consolas">CSN3451</text>
+        <text x="10" y="10" fill="#76909a" font-size="11" font-family="Consolas">A321 340 7200</text></g>
+    </svg>
+  </div>
+
+  <div class="top-bar panel">
+    <span class="engine-light"></span><span class="muted">已连接</span>
+    <button class="run-button">▶</button><span>00:40:12</span>
+    <span class="muted">│</span><span class="muted">收起 ‹ ›</span>
+  </div>
+
+  <aside class="aircraft-list panel">
+    <div class="aircraft-list-actions">
+      <span style="color:#8ea9b3;font-size:12px;align-self:center">航空器 3</span>
+      <span><button class="icon-button" title="创建航空器" style="outline:1.5px dashed #ffd166;outline-offset:2px">＋</button></span>
+    </div>
+    <div class="aircraft-row-wrap selected"><button class="aircraft-row"><span>CCA3582 · A320</span><span>ZSSS→ZBAA · 9000ft · 250kt</span></button></div>
+    <div class="aircraft-row-wrap"><button class="aircraft-row"><span>CES2107 · B738</span><span>ZSPD→ZBAA · 10400ft · 280kt</span></button></div>
+    <div class="aircraft-row-wrap"><button class="aircraft-row"><span>CSN3451 · A321</span><span>ZGGG→ZBAD · 7200ft · 230kt</span></button></div>
+  </aside>
+
+  <div class="command-dock">
+    <div class="instruction-queue"><div class="queue-item executing">HDG 090</div><div class="queue-item" style="color:#8ea9b3">DCT GYA</div></div>
+    <input value="HDG 090" />
+  </div>
+
+  <!-- 浮动面板：主窗口居中 -->
+  <form class="aircraft-form panel" style="left: 562px; top: 300px" onsubmit="return false">
+    <div class="form-header"><span><span class="grip">⋮⋮</span><span class="form-title">创建航空器</span></span><span class="form-close">✕</span></div>
+    <div class="form-grid">
+      <label>呼号<input value="CCA3582"></label>
+      <label>机型<input value="A320"></label>
+      <label>尾流<input value="M"></label>
+      <label>二次代码<input value="1234"></label>
+      <label>起飞<input value="ZSSS"></label>
+      <label>落地<input value="ZBAA"></label>
+      <label>出现时间<input value="0000"></label>
+      <label>航向<input value="360"></label>
+      <label>纬度<input value="31.1434"></label>
+      <label>经度<input value="121.8052"></label>
+      <label>初始航路点<input placeholder="与经纬度二选一"></label>
+      <label>高度<input value="9000"></label>
+      <label>速度<input value="250"></label>
+      <label class="wide">航路<input value="ZSSS ZBAA"></label>
+    </div>
+    <div class="form-actions"><button>取消</button><button class="primary">创建</button></div>
+  </form>
+
+  <!-- 设计标注 -->
+  <div class="anno" style="left: 554px; top: 266px"><b>1</b><i>点 ＋ → 面板在主窗口（态势图）中央出现</i></div>
+  <div class="anno" style="left: 1074px; top: 320px"><b>2</b><i>按住 ⋮⋮ 标题栏拖到任意位置</i></div>
+  <div class="anno" style="left: 1074px; top: 360px"><b>3</b><i>拖不出窗口边缘（视口钳制）</i></div>
+  <div class="anno" style="left: 1074px; top: 400px"><b>4</b><i>✕ / 取消 / 创建成功 → 关闭</i></div>
+  <div class="ghost" style="left: 1090px; top: 420px; opacity:.5"></div>
+  <div class="anno" style="left: 1090px; top: 686px"><b>5</b><i>拖动后的示例位置（虚线示意）</i></div>
+  <div class="anno" style="left: 40px; top: 850px"><b>6</b><i>航空器列表、指令坞保持原位不遮挡</i></div>
+</div>
+</body>
+</html>

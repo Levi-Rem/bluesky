@@ -44,14 +44,18 @@ button { color: inherit; }
 .queue-item.executing { background: rgba(75, 197, 126, .28); }
 .queue-item.failed, .queue-item.cancelled { color: #9aa9ae; text-decoration: line-through; }
 
-.modal-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .5); }
-.aircraft-form { width: min(680px, 92vw); padding: 15px; border-radius: 7px; }
-.form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.form-grid label { display: grid; gap: 4px; color: #8ea9b3; font-size: 12px; }
-.form-grid input { min-width: 0; padding: 6px; color: #e5f2f6; border: 1px solid #284550; border-radius: 3px; background: #081921; }
+.aircraft-form { position: fixed; z-index: 20; width: min(476px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow-y: auto; padding: 10px; border-radius: 7px; }
+.form-header { position: sticky; top: -10px; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: -10px -10px 8px; padding: 5px 7px 5px 10px; border-bottom: 1px solid rgba(90, 151, 174, .25); background: rgba(10, 32, 42, .95); cursor: grab; user-select: none; touch-action: none; }
+.form-header:active { cursor: grabbing; }
+.form-title { font-size: 11px; letter-spacing: 2px; color: #a8c6d1; }
+.form-close { border: 0; background: transparent; color: #78909a; cursor: pointer; padding: 1px 4px; font-size: 11px; }
+.form-close:hover { color: #f3a29e; }
+.form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.form-grid label { display: grid; gap: 3px; color: #8ea9b3; font-size: 10px; }
+.form-grid input { min-width: 0; padding: 4px; color: #e5f2f6; border: 1px solid #284550; border-radius: 3px; background: #081921; font: 11px Consolas, monospace; }
 .form-grid .wide { grid-column: 1 / -1; }
-.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.form-actions button { padding: 6px 15px; border: 1px solid #345663; border-radius: 3px; background: #102832; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.form-actions button { padding: 4px 10px; border: 1px solid #345663; border-radius: 3px; background: #102832; font-size: 12px; }
 .form-error, .connection-note { color: #f3a29e; }
 .connection-note { position: absolute; right: 12px; bottom: 10px; font-size: 12px; }
 .loading { display: flex; gap: 10px; align-items: center; justify-content: center; height: 100%; background: #07141c; color: #85a4ae; }

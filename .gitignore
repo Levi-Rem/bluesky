@@ -48,3 +48,7 @@ bluesky-master/training-platform/src/main/resources/static/
 bluesky-master/training-platform/data/
 bluesky-master/training-platform/.platform-processes.json
 bluesky-master/.env.local
+
+# session / tooling artifacts
+design/tools/pptr/node_modules/
+.dsh-vision-router/
