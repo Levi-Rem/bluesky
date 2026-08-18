@@ -71,6 +71,8 @@ function redraw() {
     const coord = fromLonLat([item.longitude, item.latitude])
     const selected = item.id === props.selectedId
     const color = selected ? props.selectedTrackColor : props.trackColor
+    /* 选中的一机整体抬高一个层级带，叠机时渲染在其它未选中机之上 */
+    const base = selected ? 10 : 0
     const { angle, dist } = layoutOf(item.id)
     const center = labelCenterOffset(angle, dist)
     const anchor = nearestEdgeMidpoint(center, { w: LABEL_W, h: LABEL_H })
@@ -78,7 +80,7 @@ function redraw() {
     /* 标杆线（zIndex 最低）：几何先落符号处，syncAnchors 计算真实端点 */
     const line = new Feature({ geometry: new LineString([coord, coord]) })
     line.setId(`line:${item.id}`)
-    line.setStyle(new Style({ stroke: new Stroke({ color, width: 1.5 }), zIndex: 1 }))
+    line.setStyle(new Style({ stroke: new Stroke({ color, width: 1.5 }), zIndex: 1 + base }))
     source.addFeature(line)
 
     /* 航迹符号：三角，指向=航向 */
@@ -89,7 +91,7 @@ function redraw() {
         src: triangleDataUri(color, selected ? 26 : 22),
         rotation: symbolRotation(item.headingDegrees)
       }),
-      zIndex: 3
+      zIndex: 3 + base
     }))
     source.addFeature(sym)
 
@@ -108,7 +110,7 @@ function redraw() {
         fill: new Fill({ color }),
         stroke: new Stroke({ color: 'rgba(4, 15, 22, .92)', width: 2 })
       }),
-      zIndex: 2
+      zIndex: 2 + base
     }))
     source.addFeature(lab)
   }
