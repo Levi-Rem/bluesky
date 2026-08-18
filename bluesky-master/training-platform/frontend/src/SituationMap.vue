@@ -166,6 +166,8 @@ function onPointerDown(e: PointerEvent) {
   const id = labelHit(e.clientX - rect.left, e.clientY - rect.top)
   if (id) {
     dragTarget = id
+    /* 按下即选中：即使随后变成拖拽（手抖>点击容差导致 singleclick 不触发）也立刻高亮 */
+    emit('select', id)
     map.getTargetElement().style.cursor = 'grabbing'
   }
 }
@@ -201,10 +203,18 @@ onMounted(() => {
     view: new View({ center: fromLonLat([116.5, 34]), zoom: 5, minZoom: 2, maxZoom: 14 })
   })
   map.on('singleclick', event => {
+    let picked: string | null = null
     map?.forEachFeatureAtPixel(event.pixel, feature => {
-      emit('select', String(feature.get('aircraftId')))
-      return true
+      const id = feature.get('aircraftId')
+      if (id) {
+        picked = String(id)
+        return true
+      }
+      return undefined
     })
+    /* OL 文本命中只覆盖字形像素（字体回退还会漂移），用几何盒兜底整块标牌 */
+    if (!picked) picked = labelHit(event.pixel[0], event.pixel[1])
+    if (picked) emit('select', picked)
   })
   map.getView().on('change', syncAnchors)
   /* 测试钩子：e2e 用（读取视图中心/像素换算，验证拖标牌不动地图） */
