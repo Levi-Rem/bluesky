@@ -93,7 +93,8 @@ function redraw() {
     }))
     source.addFeature(sym)
 
-    /* 标牌：文本居中于 center 偏移处；无边框（无 backgroundStroke） */
+    /* 标牌：文本居中于 center 偏移处；无背景盒（空白区透明，重叠时不整块遮挡），
+       仅字形带暗描边保证可读 */
     const lab = new Feature({ geometry: new Point(coord), aircraftId: item.id })
     lab.setId(`label:${item.id}`)
     lab.setStyle(new Style({
@@ -105,8 +106,7 @@ function redraw() {
         textBaseline: 'middle',
         font: '12px Consolas, monospace',
         fill: new Fill({ color }),
-        backgroundFill: new Fill({ color: 'rgba(4, 15, 22, .86)' }),
-        padding: [3, 4, 3, 4]
+        stroke: new Stroke({ color: 'rgba(4, 15, 22, .92)', width: 2 })
       }),
       zIndex: 2
     }))
