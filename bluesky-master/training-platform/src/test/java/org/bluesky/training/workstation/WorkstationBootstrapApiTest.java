@@ -50,7 +50,8 @@ class WorkstationBootstrapApiTest {
                 .andExpect(jsonPath("$.engine.performanceModel").value("OPENAP"))
                 .andExpect(jsonPath("$.aircraft").isEmpty())
                 .andExpect(jsonPath("$.instructions").isEmpty())
-                .andExpect(jsonPath("$.uiParameters.trackColor").value("#58d7ff"));
+                .andExpect(jsonPath("$.uiParameters.trackColor").value("#3fae6d"))
+                .andExpect(jsonPath("$.uiParameters.selectedTrackColor").value("#27e58d"));
     }
 
     @Test

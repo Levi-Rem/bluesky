@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>航迹符号 · 标牌 · 标杆线 设计稿</title>
+<style>
+  :root { font-family: Inter, "Microsoft YaHei", sans-serif; color: #dbe9ef; background: #061017; }
+  * { box-sizing: border-box; margin: 0; }
+  body { padding: 24px 28px 40px; }
+  h1 { font-size: 20px; letter-spacing: 1px; margin-bottom: 4px; }
+  .sub { color: #76909a; font-size: 12px; margin-bottom: 20px; }
+  h2 { font-size: 14px; color: #a8c6d1; margin: 26px 0 10px; letter-spacing: 1px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .card { background: #07141c; border: 1px solid rgba(90,151,174,.3); border-radius: 8px;
+          background-image: radial-gradient(#12242e 1px, transparent 1px); background-size: 26px 26px; }
+  .card.drag { cursor: grab; }
+  .card.drag:active { cursor: grabbing; }
+  .cap { color: #8ea9b3; font-size: 12px; margin-top: 6px; }
+  .cap b { color: #dbe9ef; }
+  svg text { font-family: Consolas, monospace; }
+  .legend { display: flex; gap: 22px; flex-wrap: wrap; border: 1px solid rgba(90,151,174,.3);
+            border-radius: 8px; padding: 12px 16px; font-size: 12.5px; color: #a8c6d1;
+            background: rgba(6,19,27,.6); }
+  .legend b { color: #e8f4f8; }
+  .chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px;
+          vertical-align: -1px; }
+</style>
+</head>
+<body>
+
+<h1>航迹符号 / 标牌 / 标杆线 —— 交互设计稿</h1>
+<div class="sub">基于上传的三种 iconfont 样式（双翼箭标 · 纸飞机 · 实心三角）· 下方三张示例卡可直接用鼠标拖动标牌体验</div>
+
+<div class="legend">
+  <span><b>航迹符号</b>：航空器真实位置，箭头指向 = 航向</span>
+  <span><b>标杆线</b>：一端连符号，一端连标牌侧边中点；线长限制在区间内</span>
+  <span><b>标牌</b>：信息块，可拖动绕符号旋转，文本保持水平</span>
+  <span><b>颜色</b>：符号与标杆线颜色跟随标牌主题色</span>
+  <span><span class="chip" style="background:#58d7ff"></span>常规 <span class="chip" style="background:#ffe66d"></span>选中 <span class="chip" style="background:#f36f6a"></span>告警</span>
+</div>
+
+<h2>① 三种符号样式（可直接拖动标牌）</h2>
+<div class="row" id="styleRow"></div>
+
+<h2>② 标杆线端点吸附 —— 标牌绕符号转动时，连线自动接到「朝向符号一侧的边中点」</h2>
+<div class="row" id="attachRow"></div>
+
+<h2>③ 标杆线长度限制 —— 标牌只能拖出/拖进到边界（虚线圆为极限位置）</h2>
+<div class="row" id="limitRow"></div>
+
+<script>
+/* ============ 设计参数（实现时的常量口径） ============ */
+const SYMBOL_SIZE = 26          // 符号边长 px
+const MIN_DIST = 70             // 标牌中心 与 符号中心 最小距离
+const MAX_DIST = 140            // 标牌中心 与 符号中心 最大距离（标杆线随之约 20~110px）
+const LABEL_W = 116, LABEL_H = 50
+
+/* iconfont 三种样式的 SVG path（viewBox 0 0 1024 1024，天然朝向：A=上 B=左上 C=上） */
+const STYLES = {
+  A: { name: '样式A · 双翼箭标', d: 'M298.666667 768l213.333333-87.850667L725.333333 768 512 298.666667 298.666667 768z m213.333333 10.922667L128 938.666667l384-853.333334 384 853.333334-384-159.744z', natural: 0 },
+  B: { name: '样式B · 纸飞机', d: 'M451.584 815.104L192 236.032c-12.288-27.648 15.872-55.808 43.52-43.52l580.096 258.56c27.648 12.288 25.6 52.224-3.584 61.44l-210.944 67.072c-10.24 3.072-17.92 11.264-21.504 21.504l-67.072 210.944c-8.704 28.672-48.64 30.72-60.928 3.072z', natural: -45 },
+  C: { name: '样式C · 实心三角', d: 'M512 106.666667l405.333333 810.666666-405.333333-101.333333L106.666667 917.333333z', natural: 0 }
+}
+
+function makeCard(opts) {
+  // opts: style, heading, angle, dist, color, lines[3], w, h, draggable, guides
+  const W = opts.w || 300, H = opts.h || 210
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('width', W); svg.setAttribute('height', H)
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+  if (opts.cardClass) svg.classList.add(...opts.cardClass.split(' '))
+
+  const NS = 'http://www.w3.org/2000/svg'
+  const el = t => document.createElementNS(NS, t)
+  const cx = W / 2, cy = H / 2
+  const st = STYLES[opts.style]
+
+  // 半径参考圈（极限演示用）
+  if (opts.guides) {
+    for (const [r, label, dash] of [[MIN_DIST, `最短 ${MIN_DIST}px`, '3 4'], [MAX_DIST, `最长 ${MAX_DIST}px`, '6 5']]) {
+      const c = el('circle'); c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r)
+      c.setAttribute('fill', 'none'); c.setAttribute('stroke', 'rgba(138,168,180,.35)')
+      c.setAttribute('stroke-dasharray', dash); c.setAttribute('stroke-width', 1)
+      svg.appendChild(c)
+      const t = el('text'); t.setAttribute('x', cx + r * Math.SQRT1_2 + 4); t.setAttribute('y', cy - r * Math.SQRT1_2 - 4)
+      t.setAttribute('fill', '#8ea9b3'); t.setAttribute('font-size', 10); t.textContent = label
+      svg.appendChild(t)
+    }
+  }
+
+  const g = el('g')
+  const leader = el('line')
+  leader.setAttribute('stroke-width', 1.5)
+  g.appendChild(leader)
+
+  const sym = el('g')
+  const p = el('path')
+  p.setAttribute('d', st.d)
+  const s = SYMBOL_SIZE
+  sym.appendChild(p)
+  g.appendChild(sym)
+
+  const lab = el('g'); lab.classList.add('label')
+  const rect = el('rect')
+  rect.setAttribute('width', LABEL_W); rect.setAttribute('height', LABEL_H)
+  rect.setAttribute('rx', 3)
+  lab.appendChild(rect)
+  const texts = opts.lines.map((line, i) => {
+    const t = el('text')
+    t.setAttribute('x', 8); t.setAttribute('y', 17 + i * 15)
+    t.setAttribute('font-size', i === 0 ? 13 : 11)
+    if (i === 0) t.setAttribute('font-weight', 'bold')
+    t.textContent = line
+    lab.appendChild(t); return t
+  })
+  // 侧边中点标记点（演示吸附）
+  const anchorDot = el('circle'); anchorDot.setAttribute('r', 2.5)
+  g.appendChild(lab); g.appendChild(anchorDot)
+  svg.appendChild(g)
+
+  const state = { angle: opts.angle, dist: Math.min(MAX_DIST, Math.max(MIN_DIST, opts.dist)) }
+
+  function layout() {
+    const rad = state.angle * Math.PI / 180
+    const lx = cx + state.dist * Math.cos(rad)
+    const ly = cy + state.dist * Math.sin(rad)
+    // 符号：平移到中心，按航向旋转（natural 为图标天然朝向补偿）
+    sym.setAttribute('transform', `translate(${cx - s / 2},${cy - s / 2}) scale(${s / 1024}) translate(512,512) rotate(${opts.heading - st.natural}) translate(-512,-512)`)
+    p.setAttribute('fill', opts.color)
+    // 标牌（文本保持水平）
+    lab.setAttribute('transform', `translate(${lx - LABEL_W / 2},${ly - LABEL_H / 2})`)
+    rect.setAttribute('fill', 'rgba(6,19,27,.92)')
+    rect.setAttribute('stroke', opts.color); rect.setAttribute('stroke-width', 1)
+    texts.forEach(t => t.setAttribute('fill', i => i === 0 ? opts.color : '#dbe9ef'))
+    texts.forEach((t, i) => { if (i > 0) t.setAttribute('fill', '#c9dde5') })
+    texts[0].setAttribute('fill', opts.color)
+    // 标杆线：符号中心 → 朝向符号一侧的边中点（四选一，取最近）
+    const mids = {
+      top:    [lx, ly - LABEL_H / 2],
+      bottom: [lx, ly + LABEL_H / 2],
+      left:   [lx - LABEL_W / 2, ly],
+      right:  [lx + LABEL_W / 2, ly]
+    }
+    let best = null, bd = 1e9
+    for (const k in mids) {
+      const d = (mids[k][0] - cx) ** 2 + (mids[k][1] - cy) ** 2
+      if (d < bd) { bd = d; best = mids[k] }
+    }
+    leader.setAttribute('x1', cx); leader.setAttribute('y1', cy)
+    leader.setAttribute('x2', best[0]); leader.setAttribute('y2', best[1])
+    leader.setAttribute('stroke', opts.color)
+    anchorDot.setAttribute('cx', best[0]); anchorDot.setAttribute('cy', best[1])
+    anchorDot.setAttribute('fill', opts.color)
+  }
+  layout()
+
+  /* 标牌拖动：绕符号旋转 + 半径钳制 */
+  if (opts.draggable) {
+    let on = false
+    const pt = e => {
+      const r = svg.getBoundingClientRect()
+      return [(e.clientX - r.left) * (W / r.width), (e.clientY - r.top) * (H / r.height)]
+    }
+    lab.addEventListener('pointerdown', e => { on = true; lab.setPointerCapture(e.pointerId); e.preventDefault() })
+    lab.addEventListener('pointermove', e => {
+      if (!on) return
+      const [mx, my] = pt(e)
+      state.angle = Math.atan2(my - cy, mx - cx) * 180 / Math.PI
+      state.dist = Math.min(MAX_DIST, Math.max(MIN_DIST, Math.hypot(mx - cx, my - cy)))
+      layout()
+    })
+    lab.addEventListener('pointerup', () => on = false)
+    lab.addEventListener('pointercancel', () => on = false)
+    lab.style.cursor = 'grab'
+  }
+  return svg
+}
+
+function addCard(container, opts, caption) {
+  const wrap = document.createElement('div')
+  if (opts.draggable) { wrap.className = 'card drag' } else { wrap.className = 'card' }
+  wrap.appendChild(makeCard(opts))
+  container.appendChild(wrap)
+  if (caption) {
+    const c = document.createElement('div'); c.className = 'cap'; c.innerHTML = caption
+    container.appendChild(c)
+  }
+}
+
+/* ① 三种样式（可拖动）：不同主题色 + 不同航向 */
+addCard(document.getElementById('styleRow'),
+  { style: 'A', heading: 45,  angle: -35, dist: 95, color: '#58d7ff', draggable: true,
+    lines: ['CCA3582', 'A320/M  HDG045', '090  0250'] },
+  '<b>样式A 双翼箭标</b> · 常规青 · 航向 045°')
+addCard(document.getElementById('styleRow'),
+  { style: 'B', heading: 135, angle: 150, dist: 95, color: '#ffe66d', draggable: true,
+    lines: ['CES2107', 'B738/M  HDG135', '104  0280'] },
+  '<b>样式B 纸飞机</b> · 选中黄 · 航向 135°')
+addCard(document.getElementById('styleRow'),
+  { style: 'C', heading: 270, angle: 30, dist: 95, color: '#f36f6a', draggable: true,
+    lines: ['CSN3451', 'A321/M  HDG270', '072  0230'] },
+  '<b>样式C 实心三角</b> · 告警红 · 航向 270°')
+
+/* ② 端点吸附：同一架机（样式A）标牌处于四个方位，连线接不同边中点 */
+for (const [angle, note] of [[-32, '右上方 → 接左边缘中点'], [148, '左下方 → 接右边缘中点'],
+                              [250, '左上方 → 接底边中点'], [62, '右下方 → 接顶边中点']]) {
+  addCard(document.getElementById('attachRow'),
+    { style: 'A', heading: 90, angle, dist: 88, color: '#58d7ff', w: 250, h: 200,
+      lines: ['CCA3582', 'A320/M  HDG090', '090  0250'] },
+    `标牌方位 ${Math.round((angle + 360) % 360)}°<br>${note}`)
+}
+
+/* ③ 长度限制：最短 / 中间 / 最长 */
+addCard(document.getElementById('limitRow'),
+  { style: 'A', heading: 90, angle: -30, dist: MIN_DIST, color: '#58d7ff', w: 340, h: 320, guides: true,
+    lines: ['CCA3582', 'A320/M  HDG090', '090  0250'] },
+  '向内拖：内圈即<b>最短</b>边界，再拖不动（线长约 20px）')
+addCard(document.getElementById('limitRow'),
+  { style: 'A', heading: 90, angle: -30, dist: (MIN_DIST + MAX_DIST) / 2, color: '#58d7ff', w: 340, h: 320, guides: true,
+    lines: ['CCA3582', 'A320/M  HDG090', '090  0250'] },
+  '中间状态（默认 105px）')
+addCard(document.getElementById('limitRow'),
+  { style: 'A', heading: 90, angle: -30, dist: MAX_DIST, color: '#58d7ff', w: 340, h: 320, guides: true,
+    lines: ['CCA3582', 'A320/M  HDG090', '090  0250'] },
+  '向外拖：外圈即<b>最长</b>边界（线长约 110px），角度仍可继续转')
+</script>
+</body>
+</html>

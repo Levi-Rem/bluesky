@@ -18,7 +18,7 @@ const deletingId = ref<string | null>(null)
 const group = computed(() => store.bootstrap?.exerciseGroup)
 const engine = computed(() => store.bootstrap?.engine)
 const colors = computed(() => store.bootstrap?.uiParameters ?? {
-  trackColor: '#58d7ff', selectedTrackColor: '#ffe66d'
+  trackColor: '#3fae6d', selectedTrackColor: '#27e58d'
 })
 const arrangedInstructions = computed(() => arrangeInstructionQueue(store.instructions))
 

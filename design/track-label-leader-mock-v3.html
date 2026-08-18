@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>航迹符号/标牌/标杆线 草图 v2</title>
+<style>
+  :root { font-family: Inter, "Microsoft YaHei", sans-serif; color: #dbe9ef; background: #061017; }
+  * { box-sizing: border-box; margin: 0; }
+  body { padding: 24px 28px 40px; }
+  h1 { font-size: 20px; letter-spacing: 1px; margin-bottom: 4px; }
+  .sub { color: #76909a; font-size: 12px; margin-bottom: 10px; }
+  h2 { font-size: 14px; color: #a8c6d1; margin: 26px 0 10px; letter-spacing: 1px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .card { background: #07141c; border: 1px solid rgba(90,151,174,.3); border-radius: 8px;
+          background-image: radial-gradient(#12242e 1px, transparent 1px); background-size: 26px 26px; }
+  .cap { color: #a0adb5; font-size: 12.5px; margin-top: 6px; }
+  .cap b { color: #dbe9ef; }
+</style>
+</head>
+<body>
+
+<h1>航迹符号 / 标牌 / 标杆线 草图 v2</h1>
+<div class="sub">样式C 实心三角 · 标牌无边框、无连接点 · 常规绿 / 选中高亮绿 · 默认右上 45° · 中心距 min 10px / max = 标牌短边×4 ≈ 264px · 标牌内容维持原三行不变</div>
+<div class="sub">①②③ 卡片里的标牌都可以直接拖动</div>
+
+<h2>① 默认状态 —— 新建航空器标牌统一摆放在右上 45°</h2>
+<div class="row" id="defaults"></div>
+
+<h2>② 拖动极限 —— 最短 10px（贴住符号）/ 最长 264px（短边 66px×4），虚线圆为边界</h2>
+<div class="row" id="limits"></div>
+
+<h2>③ 常规 vs 选中 —— 均为绿色系、标牌均无边框；选中：亮绿 + 底色高亮 + 符号放大</h2>
+<div class="row" id="states"></div>
+
+<script>
+const SYMBOL = 22                                    // 三角符号高 px
+const MIN = 10                                       // 中心距最小
+const STYLE_C = 'M512 106.666667l405.333333 810.666666-405.333333-101.333333L106.666667 917.333333z'
+const GREEN = '#3fae6d'                              // 常规绿
+const GREEN_HI = '#27e58d'                           // 选中高亮绿
+
+/* 标牌内容 —— 与线上 label() 完全一致的三行格式 */
+function labelLines(active) {
+  return [
+    'CCA3582 1234 A320 M',
+    '1147 0250 087 0000',
+    'ZSSS ZBAA ' + (active || '        ').slice(0, 8)
+  ]
+}
+const LW = 168, LH = 62                              // 标牌实测 ≈168×62（12px Consolas 3 行 + padding）
+const MAX = LH * 4                                   // 264px：最长 = 标牌短边×4
+
+function makeCard(o) {
+  const NS = 'http://www.w3.org/2000/svg'
+  const el = t => document.createElementNS(NS, t)
+  const W = o.w, H = o.h
+  const svg = el('svg'); svg.setAttribute('width', W); svg.setAttribute('height', H)
+  const cx = o.cx, cy = o.cy
+  const color = o.selected ? GREEN_HI : GREEN
+
+  if (o.guides) {
+    for (const [r, dash, lab] of [[MIN, '3 4', 'min 10px'], [MAX, '6 5', 'max 264px（短边×4）']]) {
+      const c = el('circle'); c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r)
+      c.setAttribute('fill', 'none'); c.setAttribute('stroke', 'rgba(138,168,180,.32)')
+      c.setAttribute('stroke-dasharray', dash); svg.appendChild(c)
+      const t = el('text'); t.setAttribute('x', cx + 8); t.setAttribute('y', cy - r - 6)
+      t.setAttribute('fill', '#8ea9b3'); t.setAttribute('font-size', 11); t.textContent = lab
+      svg.appendChild(t)
+    }
+  }
+
+  const g = el('g')
+  const line = el('line'); line.setAttribute('stroke', color); line.setAttribute('stroke-width', 1.5)
+  g.appendChild(line)
+  const SZ = o.selected ? SYMBOL * 1.25 : SYMBOL
+  const sym = el('path'); sym.setAttribute('d', STYLE_C); sym.setAttribute('fill', color)
+  g.appendChild(sym)
+  const lab = el('g'); lab.style.cursor = o.draggable ? 'grab' : 'default'
+  const bg = el('rect'); bg.setAttribute('width', LW); bg.setAttribute('height', LH); bg.setAttribute('rx', 3)
+  bg.setAttribute('fill', o.selected ? 'rgba(20,64,42,.92)' : 'rgba(4,15,22,.86)')
+  lab.appendChild(bg)
+  const lines = labelLines(o.active)
+  lines.forEach((s, i) => {
+    const t = el('text'); t.setAttribute('x', 7); t.setAttribute('y', 16 + i * 16)
+    t.setAttribute('font-size', 12); t.setAttribute('font-family', 'Consolas, monospace')
+    t.setAttribute('fill', i === 0 ? color : '#c9dde5')
+    if (i === 0) t.setAttribute('font-weight', 'bold')
+    t.textContent = s; lab.appendChild(t)
+  })
+  g.appendChild(lab)
+  svg.appendChild(g)
+
+  const st = { angle: o.angle, dist: Math.min(MAX, Math.max(MIN, o.dist)) }
+
+  function layout() {
+    const rad = st.angle * Math.PI / 180
+    const lx = cx + st.dist * Math.cos(rad), ly = cy + st.dist * Math.sin(rad)
+    sym.setAttribute('transform',
+      `translate(${cx - SZ / 2},${cy - SZ / 2}) scale(${SZ / 1024}) translate(512,512) rotate(${o.heading}) translate(-512,-512)`)
+    lab.setAttribute('transform', `translate(${lx - LW / 2},${ly - LH / 2})`)
+    const mids = [[lx, ly - LH / 2], [lx, ly + LH / 2], [lx - LW / 2, ly], [lx + LW / 2, ly]]
+    let best = mids[0], bd = Infinity
+    for (const m of mids) { const d = (m[0] - cx) ** 2 + (m[1] - cy) ** 2; if (d < bd) { bd = d; best = m } }
+    line.setAttribute('x1', cx); line.setAttribute('y1', cy)
+    line.setAttribute('x2', best[0]); line.setAttribute('y2', best[1])
+  }
+  layout()
+
+  if (o.draggable) {
+    let on = false
+    const toSvg = e => {
+      const r = svg.getBoundingClientRect()
+      return [(e.clientX - r.left) * (W / r.width), (e.clientY - r.top) * (H / r.height)]
+    }
+    lab.addEventListener('pointerdown', e => { on = true; lab.setPointerCapture(e.pointerId); e.preventDefault() })
+    lab.addEventListener('pointermove', e => {
+      if (!on) return
+      const [mx, my] = toSvg(e)
+      st.angle = Math.atan2(my - cy, mx - cx) * 180 / Math.PI
+      st.dist = Math.min(MAX, Math.max(MIN, Math.hypot(mx - cx, my - cy)))
+      layout()
+    })
+    lab.addEventListener('pointerup', () => on = false)
+    lab.addEventListener('pointercancel', () => on = false)
+  }
+  const wrap = document.createElement('div'); wrap.className = 'card'; wrap.appendChild(svg)
+  return wrap
+}
+
+function add(id, o, caption) {
+  const host = document.getElementById(id)
+  const col = document.createElement('div')
+  col.appendChild(makeCard(o))
+  if (caption) { const c = document.createElement('div'); c.className = 'cap'; c.innerHTML = caption; col.appendChild(c) }
+  host.appendChild(col)
+}
+
+/* ① 默认 45° 右上（屏幕坐标 angle = -45°）：常规 / 选中 / 带当前指令 */
+add('defaults', { w: 420, h: 330, cx: 110, cy: 240, angle: -45, dist: 120, heading: 45,
+  draggable: true, active: '' },
+  '<b>常规</b> · 绿 #3fae6d · 无边框标牌<br>标杆线直接止于<b>左边缘中点</b>（无圆点）')
+add('defaults', { w: 420, h: 330, cx: 110, cy: 240, angle: -45, dist: 120, heading: 135,
+  draggable: true, selected: true, active: 'HDG 090 ' },
+  '<b>选中</b> · 亮绿 #27e58d · 底色高亮 + 符号放大<br>（无边框，仅靠亮度/底色区分）')
+
+/* ② 极限：min 10（贴住，线被标牌盖住只剩一点点）/ max 264 */
+add('limits', { w: 620, h: 640, cx: 300, cy: 320, angle: -45, dist: MIN, heading: 90,
+  draggable: true, guides: true, active: '' },
+  '<b>最短</b>：中心距 10px，标牌几乎贴住符号<br>（仍可绕转，不能再拉近）')
+add('limits', { w: 620, h: 640, cx: 300, cy: 320, angle: -45, dist: MAX, heading: 90,
+  draggable: true, guides: true, active: '' },
+  '<b>最长</b>：中心距 264px = 标牌短边 66×4<br>（角度仍可继续转）')
+
+/* ③ 状态对比：不同航向 */
+add('states', { w: 420, h: 330, cx: 110, cy: 240, angle: -45, dist: 120, heading: 270,
+  draggable: true, active: '' }, '常规 · 航向 270°')
+add('states', { w: 420, h: 330, cx: 110, cy: 240, angle: -45, dist: 120, heading: 90,
+  draggable: true, selected: true, active: 'DCT GYA  ' }, '选中 · 航向 090° · 高亮')
+</script>
+</body>
+</html>
