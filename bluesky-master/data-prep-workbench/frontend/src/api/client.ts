@@ -43,6 +43,20 @@ export function list<T>(entity: string, page = 0, size = 20): Promise<PageResult
   return request<PageResult<T>>(`/api/${entity}?page=${page}&size=${size}`);
 }
 
+/** 遍历后端分页上限，返回实体的完整数据集。 */
+export async function listAll<T>(entity: string, size = 200): Promise<T[]> {
+  const items: T[] = [];
+  let page = 0;
+  while (true) {
+    const result = await list<T>(entity, page, size);
+    items.push(...result.items);
+    if (items.length >= result.total || result.items.length < result.size) {
+      return items;
+    }
+    page += 1;
+  }
+}
+
 export function get<T>(entity: string, id: string): Promise<T> {
   return request<T>(`/api/${entity}/${id}`);
 }
@@ -80,6 +94,7 @@ export interface MapFeature {
   entityType: string;
   code: string;
   name: string;
+  revision: number;
   geometry: Record<string, unknown> | null;
 }
 
@@ -95,7 +110,7 @@ export function mapLayers(): Promise<{ layers: MapLayerData[] }> {
 }
 
 export interface MapOperation {
-  operationType: 'UPDATE_GEOMETRY' | 'UPDATE_PROPERTIES' | 'DELETE';
+  operationType: 'CREATE' | 'UPDATE_GEOMETRY' | 'UPDATE_PROPERTIES' | 'DELETE';
   entityType: string;
   entityId: string;
   revision: number;

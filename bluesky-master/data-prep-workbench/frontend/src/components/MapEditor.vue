@@ -41,11 +41,11 @@
       <template v-if="selection">
         <div class="field">
           <label>标识</label>
-          <input v-model="selection.code" :disabled="!editable" />
+          <input v-model="selection.code" :disabled="!editable" @input="markPropertyDirty" />
         </div>
         <div class="field">
           <label>名称</label>
-          <input v-model="selection.name" :disabled="!editable" />
+          <input v-model="selection.name" :disabled="!editable" @input="markPropertyDirty" />
         </div>
         <div class="field">
           <label>类型</label>
@@ -55,12 +55,12 @@
           <label>修订</label>
           <input :value="selection.revision" disabled />
         </div>
-        <div class="property-actions">
-          <button class="danger-button" :disabled="!editable" @click="removeSelection">删除</button>
-          <button class="primary-button" :disabled="!dirty" @click="save">保存修改</button>
-        </div>
       </template>
       <p v-else class="hint">选择地图对象查看属性</p>
+      <div class="property-actions">
+        <button v-if="selection" class="danger-button" :disabled="!editable" @click="removeSelection">删除</button>
+        <button class="primary-button" :disabled="!dirty" @click="save">保存修改</button>
+      </div>
     </aside>
 
     <div class="map-message">{{ message }}</div>
@@ -95,6 +95,7 @@ const currentTool = ref('select');
 const message = ref('勾选左侧数据项控制地图显示');
 const selection = ref<{ entityId: string; entityType: string; code: string; name: string; revision: number } | null>(null);
 const dirty = ref(false);
+const propertyDirty = ref(false);
 
 const tools = [
   { id: 'select', label: '选择' },
@@ -147,6 +148,10 @@ function featureStyle(category: string, code: string): Style {
 
 async function loadLayers() {
   const data = await mapLayers();
+  selectInteraction?.getFeatures().clear();
+  layerMap.forEach(layer => map?.removeLayer(layer));
+  layerMap.clear();
+  featureIndex.clear();
   layers.value = data.layers;
   for (const layer of data.layers) {
     visible.value[layer.category] = true;
@@ -165,7 +170,7 @@ async function loadLayers() {
       feature.set('entityType', item.entityType, true);
       feature.set('code', item.code, true);
       feature.set('name', item.name, true);
-      feature.set('revision', 0, true);
+      feature.set('revision', item.revision, true);
       feature.setStyle(featureStyle(layer.category, item.code));
       source.addFeature(feature);
       if (item.entityId) {
@@ -176,11 +181,6 @@ async function loadLayers() {
     layerMap.set(layer.category, vectorLayer);
     map?.addLayer(vectorLayer);
   }
-}
-
-async function reloadRevisions() {
-  const data = await mapLayers();
-  layers.value = data.layers;
 }
 
 function toggleLayer(category: string) {
@@ -228,7 +228,7 @@ function useTool(tool: string) {
       const entityType = tool === 'point' ? 'nav-point' : 'airspace';
       const code = window.prompt(tool === 'point' ? '新导航点编码' : '新空域编码') ?? '';
       if (!code) {
-        feature.setStyle(new Style({}));
+        layerMap.get(category)?.getSource()?.removeFeature(feature);
         message.value = '已取消绘制';
         return;
       }
@@ -242,7 +242,7 @@ function useTool(tool: string) {
       feature.setStyle(featureStyle(category, code));
       const geometry = feature.getGeometry();
       pending.push({
-        operationType: 'UPDATE_GEOMETRY',
+        operationType: 'CREATE',
         entityType,
         entityId: '',
         revision: 0,
@@ -253,9 +253,11 @@ function useTool(tool: string) {
                 dataProjection: 'EPSG:4326'
               })
             )
-          : ''
+          : '',
+        properties: { code, name }
       });
-      message.value = `新对象 ${code} 已绘制（请先在列表页新建该对象后再编辑几何）`;
+      dirty.value = true;
+      message.value = `新对象 ${code} 已绘制，点击保存修改提交`;
     });
     map?.addInteraction(drawInteraction);
     message.value = `${tool === 'point' ? '新增点' : '绘制区域'}模式已启用`;
@@ -311,27 +313,60 @@ function queueGeometry(feature: Feature) {
   dirty.value = true;
 }
 
+function markPropertyDirty() {
+  if (!editable.value || !selection.value) {
+    return;
+  }
+  const { entityId, entityType, code, name, revision } = selection.value;
+  const operation: MapOperation = {
+    operationType: 'UPDATE_PROPERTIES',
+    entityType,
+    entityId,
+    revision,
+    properties: { code, name }
+  };
+  const index = pending.findIndex(
+    item => item.entityId === entityId && item.operationType === 'UPDATE_PROPERTIES'
+  );
+  if (index >= 0) {
+    pending[index] = operation;
+  } else {
+    pending.push(operation);
+  }
+  const feature = featureIndex.get(entityId);
+  if (feature) {
+    feature.set('code', code, true);
+    feature.set('name', name, true);
+    feature.setStyle(featureStyle(String(feature.get('category') ?? 'NAVIGATION'), code));
+  }
+  propertyDirty.value = true;
+  dirty.value = true;
+}
+
 function removeSelection() {
   if (!selection.value) {
     return;
   }
   const { entityId, entityType, revision } = selection.value;
+  for (let index = pending.length - 1; index >= 0; index -= 1) {
+    if (pending[index].entityId === entityId) {
+      pending.splice(index, 1);
+    }
+  }
   pending.push({ operationType: 'DELETE', entityType, entityId, revision });
   const feature = featureIndex.get(entityId);
   if (feature) {
     feature.setStyle(new Style({}));
   }
   selection.value = null;
+  propertyDirty.value = false;
   dirty.value = true;
   message.value = '删除待保存：点击保存修改提交';
 }
 
 async function save() {
-  if (!selection.value) {
-    return;
-  }
-  const { entityId, entityType, code, name, revision } = selection.value;
-  if (editable.value) {
+  if (selection.value && editable.value && propertyDirty.value) {
+    const { entityId, entityType, code, name, revision } = selection.value;
     const index = pending.findIndex(
       op => op.entityId === entityId && op.operationType === 'UPDATE_PROPERTIES'
     );
@@ -356,9 +391,11 @@ async function save() {
     const result = await saveMapFeatures(pending);
     pending.length = 0;
     dirty.value = false;
-    message.value = `已保存 ${result.saved} 项修改`;
+    propertyDirty.value = false;
+    selection.value = null;
     healthStore.bumpRevision();
-    await reloadRevisions();
+    await loadLayers();
+    message.value = `已保存 ${result.saved} 项修改`;
   } catch (ex) {
     message.value = ex instanceof Error ? ex.message : '保存失败';
   }
@@ -377,7 +414,8 @@ onMounted(async () => {
     const feature = event.selected[0];
     if (!feature) {
       selection.value = null;
-      dirty.value = false;
+      propertyDirty.value = false;
+      dirty.value = pending.length > 0;
       return;
     }
     selection.value = {
@@ -387,7 +425,8 @@ onMounted(async () => {
       name: String(feature.get('name') ?? ''),
       revision: Number(feature.get('revision') ?? 0)
     };
-    dirty.value = false;
+    propertyDirty.value = false;
+    dirty.value = pending.length > 0;
   });
   map.addInteraction(selectInteraction);
   await loadLayers();

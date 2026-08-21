@@ -53,8 +53,8 @@ public interface AirwayMapper {
             + "s.lower_value, s.lower_reference, s.upper_value, s.upper_reference, "
             + "sp.code AS start_point_code, ep.code AS end_point_code "
             + "FROM airway_segment s "
-            + "LEFT JOIN navigation_point sp ON sp.id = s.start_point_id "
-            + "LEFT JOIN navigation_point ep ON ep.id = s.end_point_id "
+            + "JOIN navigation_point sp ON sp.id = s.start_point_id AND sp.deleted = FALSE "
+            + "JOIN navigation_point ep ON ep.id = s.end_point_id AND ep.deleted = FALSE "
             + "WHERE s.airway_id = #{airwayId} AND s.deleted = FALSE ORDER BY s.order_no")
     List<AirwaySegmentRow> findSegments(String airwayId);
 

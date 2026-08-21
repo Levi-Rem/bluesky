@@ -34,13 +34,14 @@ public class MapLayer {
     }
 
     public void addFeature(String featureId, String entityId, String entityType,
-                           String code, String name, Object geometry) {
+                           String code, String name, int revision, Object geometry) {
         Map<String, Object> feature = new LinkedHashMap<>();
         feature.put("featureId", featureId);
         feature.put("entityId", entityId);
         feature.put("entityType", entityType);
         feature.put("code", code);
         feature.put("name", name);
+        feature.put("revision", revision);
         feature.put("geometry", geometry);
         features.add(feature);
     }

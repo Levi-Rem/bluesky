@@ -5,7 +5,7 @@ import java.util.Map;
 /** 地图批量保存操作（对应用户数据结构 MapEditOperation 的一期子集）。 */
 public class MapFeatureOperation {
 
-    /** UPDATE_GEOMETRY / UPDATE_PROPERTIES / DELETE */
+    /** CREATE / UPDATE_GEOMETRY / UPDATE_PROPERTIES / DELETE */
     private String operationType;
     /** nav-point / airspace */
     private String entityType;

@@ -37,17 +37,17 @@ public class MapService {
         List<MapLayer> layers = new ArrayList<>();
 
         MapLayer navigation = new MapLayer("NAVIGATION", "导航数据");
-        for (NavPointRow point : navPointService.list(0, 200).getItems()) {
+        for (NavPointRow point : allNavigationPoints()) {
             navigation.addFeature("nav-" + point.getId(), point.getId(), "nav-point",
-                    point.getCode(), point.getName(),
+                    point.getCode(), point.getName(), point.getRevision(),
                     point(point.getLongitude(), point.getLatitude()));
         }
         layers.add(navigation);
 
         MapLayer airspaceLayer = new MapLayer("AIRSPACE", "空域数据");
-        for (AirspaceRow airspace : airspaceService.list(0, 200).getItems()) {
+        for (AirspaceRow airspace : allAirspaces()) {
             airspaceLayer.addFeature("as-" + airspace.getId(), airspace.getId(), "airspace",
-                    airspace.getCode(), airspace.getName(), parse(airspace.getBoundary()));
+                    airspace.getCode(), airspace.getName(), airspace.getRevision(), parse(airspace.getBoundary()));
         }
         layers.add(airspaceLayer);
 
@@ -68,7 +68,8 @@ public class MapService {
             geometry.put("type", "LineString");
             geometry.put("coordinates", airwayPaths.getOrDefault(entry.getKey(), new ArrayList<>()));
             airwayLayer.addFeature("aw-" + entry.getKey(), entry.getKey(), "airway",
-                    String.valueOf(airway.get("code")), String.valueOf(airway.get("name")), geometry);
+                    String.valueOf(airway.get("code")), String.valueOf(airway.get("name")),
+                    integer(airway.get("revision")), geometry);
         }
         layers.add(airwayLayer);
 
@@ -76,11 +77,13 @@ public class MapService {
         for (Map<String, Object> point : refMapper.selectWindPoints()) {
             weatherLayer.addFeature("wp-" + point.get("id"), String.valueOf(point.get("windFieldId")),
                     "wind-field", String.valueOf(point.get("code")), String.valueOf(point.get("name")),
+                    integer(point.get("revision")),
                     point(dbl(point.get("longitude")), dbl(point.get("latitude"))));
         }
         for (Map<String, Object> area : refMapper.selectSigWeatherAreas()) {
             weatherLayer.addFeature("sw-" + area.get("id"), String.valueOf(area.get("id")),
                     "sig-weather", String.valueOf(area.get("code")), String.valueOf(area.get("name")),
+                    integer(area.get("revision")),
                     parse(String.valueOf(area.get("boundary"))));
         }
         layers.add(weatherLayer);
@@ -93,6 +96,7 @@ public class MapService {
                     : ((Number) site.get("maximumRangeNm")).doubleValue();
             radarLayer.addFeature("rs-" + site.get("id"), String.valueOf(site.get("id")),
                     "radar-site", String.valueOf(site.get("code")), String.valueOf(site.get("name")),
+                    integer(site.get("revision")),
                     coveragePolygon(lon, lat, rangeNm));
         }
         layers.add(radarLayer);
@@ -106,13 +110,24 @@ public class MapService {
             throw ApiException.badRequest("地图保存操作不能为空");
         }
         int saved = 0;
+        Map<String, Integer> revisionCursor = new LinkedHashMap<>();
         for (MapFeatureOperation operation : operations) {
+            String key = operation.getEntityType() + ":" + operation.getEntityId();
+            Integer currentRevision = revisionCursor.get(key);
+            if (currentRevision != null) {
+                operation.setRevision(currentRevision);
+            }
             switch (operation.getOperationType() == null ? "" : operation.getOperationType()) {
+                case "CREATE":
+                    saved += create(operation);
+                    break;
                 case "UPDATE_GEOMETRY":
                     saved += updateGeometry(operation);
+                    revisionCursor.put(key, operation.getRevision() + 1);
                     break;
                 case "UPDATE_PROPERTIES":
                     saved += updateProperties(operation);
+                    revisionCursor.put(key, operation.getRevision() + 1);
                     break;
                 case "DELETE":
                     delete(operation);
@@ -125,6 +140,41 @@ public class MapService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("saved", saved);
         return result;
+    }
+
+    private int create(MapFeatureOperation operation) {
+        Map<String, Object> properties = operation.getProperties();
+        String code = requiredProperty(properties, "code");
+        String name = requiredProperty(properties, "name");
+        Map<String, Object> geometry = parse(operation.getGeometry());
+        if ("nav-point".equals(operation.getEntityType())) {
+            if (geometry == null || !"Point".equals(geometry.get("type"))) {
+                throw ApiException.badRequest("导航点几何必须为 GeoJSON Point");
+            }
+            List<Double> coordinates = coords(geometry.get("coordinates"));
+            NavPointRow row = new NavPointRow();
+            row.setCode(code);
+            row.setName(name);
+            row.setPointType(stringProperty(properties, "pointType", "FIX"));
+            row.setLongitude(coordinates.get(0));
+            row.setLatitude(coordinates.get(1));
+            navPointService.create(row);
+            return 1;
+        }
+        if ("airspace".equals(operation.getEntityType())) {
+            if (geometry == null || (!("Polygon".equals(geometry.get("type")))
+                    && !("MultiPolygon".equals(geometry.get("type"))))) {
+                throw ApiException.badRequest("空域几何必须为 GeoJSON Polygon 或 MultiPolygon");
+            }
+            AirspaceRow row = new AirspaceRow();
+            row.setCode(code);
+            row.setName(name);
+            row.setAirspaceType(stringProperty(properties, "airspaceType", "TMA"));
+            row.setBoundary(operation.getGeometry());
+            airspaceService.create(row);
+            return 1;
+        }
+        throw ApiException.badRequest("一期地图仅支持新增导航点与空域：" + operation.getEntityType());
     }
 
     private int updateGeometry(MapFeatureOperation operation) {
@@ -193,6 +243,48 @@ public class MapService {
         }
     }
 
+    private List<NavPointRow> allNavigationPoints() {
+        List<NavPointRow> result = new ArrayList<>();
+        int page = 0;
+        do {
+            List<NavPointRow> batch = navPointService.list(page++, 200).getItems();
+            result.addAll(batch);
+            if (batch.size() < 200) {
+                break;
+            }
+        } while (true);
+        return result;
+    }
+
+    private List<AirspaceRow> allAirspaces() {
+        List<AirspaceRow> result = new ArrayList<>();
+        int page = 0;
+        do {
+            List<AirspaceRow> batch = airspaceService.list(page++, 200).getItems();
+            result.addAll(batch);
+            if (batch.size() < 200) {
+                break;
+            }
+        } while (true);
+        return result;
+    }
+
+    private String requiredProperty(Map<String, Object> properties, String name) {
+        if (properties == null || properties.get(name) == null
+                || String.valueOf(properties.get(name)).trim().isEmpty()) {
+            throw ApiException.badRequest("新增对象属性必填：" + name);
+        }
+        return String.valueOf(properties.get(name)).trim();
+    }
+
+    private String stringProperty(Map<String, Object> properties, String name, String defaultValue) {
+        if (properties == null || properties.get(name) == null
+                || String.valueOf(properties.get(name)).trim().isEmpty()) {
+            return defaultValue;
+        }
+        return String.valueOf(properties.get(name)).trim();
+    }
+
     private Map<String, Object> point(Double lon, Double lat) {
         Map<String, Object> geometry = new LinkedHashMap<>();
         geometry.put("type", "Point");
@@ -230,6 +322,10 @@ public class MapService {
         return value == null ? null : ((Number) value).doubleValue();
     }
 
+    private int integer(Object value) {
+        return value == null ? 0 : ((Number) value).intValue();
+    }
+
     private double round6(double value) {
         return Math.round(value * 1e6) / 1e6;
     }
@@ -246,38 +342,46 @@ public class MapService {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private List<Double> coords(Object coordinates) {
-        return (List<Double>) coordinates;
+        if (!(coordinates instanceof List)) {
+            throw ApiException.badRequest("GeoJSON 坐标格式不正确");
+        }
+        List<?> raw = (List<?>) coordinates;
+        if (raw.size() < 2 || !(raw.get(0) instanceof Number) || !(raw.get(1) instanceof Number)) {
+            throw ApiException.badRequest("GeoJSON 坐标格式不正确");
+        }
+        return coord(((Number) raw.get(0)).doubleValue(), ((Number) raw.get(1)).doubleValue());
     }
 
     @Mapper
     public interface MapRefMapper {
 
-        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\" FROM airway WHERE deleted = FALSE")
+        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", revision AS \"revision\" FROM airway WHERE deleted = FALSE")
         List<Map<String, Object>> selectAirways();
 
         /** 航路折线顶点：每段贡献起点+终点，按段序、再按起/终排序。 */
         @Select("SELECT s.airway_id AS \"airwayId\", s.order_no * 2 AS \"seq\", sp.longitude AS \"longitude\", sp.latitude AS \"latitude\" "
                 + "FROM airway_segment s JOIN navigation_point sp ON sp.id = s.start_point_id "
-                + "WHERE s.deleted = FALSE "
+                + "JOIN airway a ON a.id = s.airway_id "
+                + "WHERE s.deleted = FALSE AND sp.deleted = FALSE AND a.deleted = FALSE "
                 + "UNION ALL "
                 + "SELECT s.airway_id, s.order_no * 2 + 1, ep.longitude, ep.latitude "
                 + "FROM airway_segment s JOIN navigation_point ep ON ep.id = s.end_point_id "
-                + "WHERE s.deleted = FALSE "
+                + "JOIN airway a ON a.id = s.airway_id "
+                + "WHERE s.deleted = FALSE AND ep.deleted = FALSE AND a.deleted = FALSE "
                 + "ORDER BY 1, 2")
         List<Map<String, Object>> selectAirwayVertices();
 
-        @Select("SELECT p.id AS \"id\", w.id AS \"windFieldId\", w.code AS \"code\", w.name AS \"name\", p.longitude AS \"longitude\", p.latitude AS \"latitude\" "
+        @Select("SELECT p.id AS \"id\", w.id AS \"windFieldId\", w.code AS \"code\", w.name AS \"name\", w.revision AS \"revision\", p.longitude AS \"longitude\", p.latitude AS \"latitude\" "
                 + "FROM wind_field_point p JOIN wind_field w ON w.id = p.wind_field_id "
                 + "WHERE p.deleted = FALSE AND w.deleted = FALSE")
         List<Map<String, Object>> selectWindPoints();
 
-        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", CAST(boundary AS VARCHAR(16384)) AS \"boundary\" "
+        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", revision AS \"revision\", CAST(boundary AS VARCHAR(16384)) AS \"boundary\" "
                 + "FROM significant_weather_area WHERE deleted = FALSE")
         List<Map<String, Object>> selectSigWeatherAreas();
 
-        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", longitude AS \"longitude\", latitude AS \"latitude\", maximum_range_nm AS \"maximumRangeNm\" "
+        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", revision AS \"revision\", longitude AS \"longitude\", latitude AS \"latitude\", maximum_range_nm AS \"maximumRangeNm\" "
                 + "FROM logical_radar_site WHERE deleted = FALSE")
         List<Map<String, Object>> selectRadarSites();
     }

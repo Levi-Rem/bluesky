@@ -28,6 +28,12 @@ public interface NavPointMapper {
     @Select("SELECT COUNT(*) FROM navigation_point WHERE code = #{code} AND deleted = FALSE AND id <> #{excludeId}")
     int countByCode(@Param("code") String code, @Param("excludeId") String excludeId);
 
+    @Select("SELECT COUNT(*) FROM airway_segment s "
+            + "JOIN airway a ON a.id = s.airway_id "
+            + "WHERE (s.start_point_id = #{id} OR s.end_point_id = #{id}) "
+            + "AND s.deleted = FALSE AND a.deleted = FALSE")
+    int countActiveAirwayReferences(String id);
+
     @Insert("INSERT INTO navigation_point (id, code, name, point_type, longitude, latitude, elevation_m, "
             + "frequency_mhz, magnetic_variation_deg, description, status, source_type, source_reference, "
             + "revision, deleted, created_by, updated_by) VALUES "

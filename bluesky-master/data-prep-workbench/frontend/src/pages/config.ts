@@ -179,7 +179,7 @@ export function createEntityOf(page: string): string | null {
   return pages[page]?.entity ?? null;
 }
 
-const navTypes = ['VOR', 'DME', 'NDB', 'TACAN', 'WAYPOINT', 'FIX'];
+const navTypes = ['FIX', 'VOR', 'NDB', 'DME', 'VOR_DME', 'ILS', 'OTHER'];
 const airspaceTypes = ['FIR', 'TMA', 'CTR', 'CTA', 'RESTRICTED', 'DANGER', 'PROHIBITED'];
 const windTypes = ['GLOBAL_CONSTANT', 'TWO_DIMENSIONAL', 'THREE_DIMENSIONAL'];
 const performanceSources = ['OPENAP', 'BADA', 'LEGACY', 'MANUAL'];

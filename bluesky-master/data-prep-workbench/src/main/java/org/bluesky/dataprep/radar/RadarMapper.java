@@ -109,6 +109,12 @@ public interface RadarMapper {
             + "ORDER BY b.display_order")
     List<String> selectBoundChannelCodes(String siteId);
 
+    @Select("SELECT COUNT(*) FROM radar_channel_binding b "
+            + "JOIN asterix_channel c ON c.id = b.channel_id "
+            + "WHERE b.radar_site_id = #{siteId} AND b.deleted = FALSE AND b.enabled = TRUE "
+            + "AND c.deleted = FALSE AND c.category = 'CAT048'")
+    int countActiveCat048Bindings(String siteId);
+
     @Insert("INSERT INTO radar_channel_binding (id, radar_site_id, channel_id, enabled, display_order) "
             + "VALUES (#{id}, #{siteId}, #{channelId}, TRUE, #{displayOrder})")
     int insertBinding(@Param("id") String id, @Param("siteId") String siteId,
@@ -116,4 +122,7 @@ public interface RadarMapper {
 
     @Update("UPDATE radar_channel_binding SET deleted = TRUE WHERE channel_id = #{channelId}")
     int markBindingsDeleted(String channelId);
+
+    @Update("UPDATE radar_channel_binding SET deleted = TRUE WHERE radar_site_id = #{siteId}")
+    int markSiteBindingsDeleted(String siteId);
 }

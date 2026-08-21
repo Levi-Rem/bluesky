@@ -1,7 +1,9 @@
 package org.bluesky.dataprep.excel;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -15,7 +17,7 @@ public class EntitySchema<T> {
     private final String sheetName;
     private final List<ExcelColumn> columns;
     private final List<String> sampleRow;
-    private final Function<Integer, List<T>> listLoader;
+    private final BiFunction<Integer, Integer, List<T>> listLoader;
     private final Function<T, String> codeGetter;
     private final Function<T, List<String>> rowExporter;
     private final ImportApplier importApplier;
@@ -26,7 +28,7 @@ public class EntitySchema<T> {
     }
 
     public EntitySchema(String entity, String sheetName, List<ExcelColumn> columns,
-                        List<String> sampleRow, Function<Integer, List<T>> listLoader,
+                        List<String> sampleRow, BiFunction<Integer, Integer, List<T>> listLoader,
                         Function<T, String> codeGetter, Function<T, List<String>> rowExporter,
                         ImportApplier importApplier) {
         this.entity = entity;
@@ -56,7 +58,16 @@ public class EntitySchema<T> {
     }
 
     public List<T> loadAll() {
-        return listLoader.apply(500);
+        final int pageSize = 200;
+        List<T> result = new ArrayList<>();
+        int page = 0;
+        while (true) {
+            List<T> batch = listLoader.apply(page++, pageSize);
+            result.addAll(batch);
+            if (batch.size() < pageSize) {
+                return result;
+            }
+        }
     }
 
     public Function<T, String> getCodeGetter() {

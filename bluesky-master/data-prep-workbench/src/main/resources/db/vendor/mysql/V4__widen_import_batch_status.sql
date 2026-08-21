@@ -1,0 +1,2 @@
+-- 导入批次状态值扩容：MySQL 使用 MODIFY COLUMN 方言
+ALTER TABLE import_batch MODIFY COLUMN batch_status VARCHAR(24) NOT NULL DEFAULT 'RUNNING';

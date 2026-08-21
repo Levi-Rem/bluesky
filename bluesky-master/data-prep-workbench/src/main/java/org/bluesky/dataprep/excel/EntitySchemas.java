@@ -82,13 +82,13 @@ public class EntitySchemas {
 
     private void registerNavPoint() {
         List<ExcelColumn> cols = Arrays.asList(
-                col("code", "编码*"), col("name", "名称*"), col("pointType", "类型*(VOR/DME/NDB/TACAN/WAYPOINT)"),
+                col("code", "编码*"), col("name", "名称*"), col("pointType", "类型*(FIX/VOR/NDB/DME/VOR_DME/ILS/OTHER)"),
                 col("longitude", "经度*"), col("latitude", "纬度*"), col("elevationM", "海拔(米)"),
                 col("frequencyMhz", "频率(MHz)"), col("description", "描述"));
         schemas.put("nav-point", new EntitySchema<>(
                 "nav-point", "导航点", cols,
                 Arrays.asList("PUD", "浦东VOR/DME", "VOR", "121.8", "31.2", "4", "113.2", "原型样例行"),
-                size -> navPointService.list(0, size).getItems(),
+                (page, size) -> navPointService.list(page, size).getItems(),
                 NavPointRow::getCode,
                 row -> Arrays.asList(
                         row.getCode(), row.getName(), row.getPointType(),
@@ -123,7 +123,7 @@ public class EntitySchemas {
                 "airport", "机场", cols,
                 Arrays.asList("ZBTJ", "天津滨海", "ZBTJ", "TSN", "CN", "4F", "117.35", "39.12", "3", "3600",
                         "16R/34L:3600:60:162:ASPHALT"),
-                size -> airportService.list(0, size).getItems().stream()
+                (page, size) -> airportService.list(page, size).getItems().stream()
                         .map(row -> airportService.get(row.getId())).collect(Collectors.toList()),
                 AirportRow::getCode,
                 row -> Arrays.asList(
@@ -164,7 +164,7 @@ public class EntitySchemas {
                 Arrays.asList("T-100", "示例管制区", "TMA",
                         "{\"type\":\"Polygon\",\"coordinates\":[[[120.0,30.0],[121.0,30.0],[121.0,31.0],[120.0,31.0],[120.0,30.0]]]}",
                         "1200", "MSL", "6000", "MSL"),
-                size -> airspaceService.list(0, size).getItems(),
+                (page, size) -> airspaceService.list(page, size).getItems(),
                 AirspaceRow::getCode,
                 row -> Arrays.asList(
                         row.getCode(), row.getName(), row.getAirspaceType(), nz(row.getBoundary()),
@@ -198,7 +198,7 @@ public class EntitySchemas {
         schemas.put("airway", new EntitySchema<>(
                 "airway", "航路", cols,
                 Arrays.asList("T-800", "示例航路", "TWO_WAY", "6000", "MSL", "12000", "MSL", "PUD-SASAN;SASAN-AND"),
-                size -> airwayService.list(0, size).getItems(),
+                (page, size) -> airwayService.list(page, size).getItems(),
                 AirwayRow::getCode,
                 row -> Arrays.asList(
                         row.getCode(), row.getName(), row.getAirwayDirection(),
@@ -236,7 +236,7 @@ public class EntitySchemas {
                 Arrays.asList("WIND-T100", "示例风场", "THREE_DIMENSIONAL", "", "",
                         "", "2026-08-21T08:00:00", "2026-08-21T20:00:00",
                         "121.5:31.2:2000:90:5.5;121.6:31.3:3000:100:7.0"),
-                size -> windFieldService.list(0, size).getItems().stream()
+                (page, size) -> windFieldService.list(page, size).getItems().stream()
                         .map(row -> windFieldService.get(row.getId())).collect(Collectors.toList()),
                 WindFieldRow::getCode,
                 row -> Arrays.asList(
@@ -274,7 +274,7 @@ public class EntitySchemas {
                 "performance", "机型性能", cols,
                 Arrays.asList("B738", "波音737-800", "BOEING", "737-800", "OPENAP", "CFM56", "M",
                         "79010", "41000", "0.82", "25"),
-                size -> performanceService.list(0, size).getItems(),
+                (page, size) -> performanceService.list(page, size).getItems(),
                 PerformanceRow::getCode,
                 row -> Arrays.asList(
                         row.getCode(), row.getName(), nz(row.getManufacturer()), nz(row.getModelName()),
@@ -311,7 +311,7 @@ public class EntitySchemas {
         schemas.put("radar-site", new EntitySchema<>(
                 "radar-site", "逻辑雷达站", cols,
                 Arrays.asList("RDR-SHA-02", "虹桥场监雷达", "1", "22", "121.3", "31.2", "10", "60"),
-                size -> radarService.listSites(0, size).getItems(),
+                (page, size) -> radarService.listSites(page, size).getItems(),
                 RadarSiteRow::getCode,
                 row -> Arrays.asList(
                         row.getCode(), row.getName(), str(row.getSac()), str(row.getSic()),
@@ -347,7 +347,7 @@ public class EntitySchemas {
                 "asterix-channel", "ASTERIX通道", cols,
                 Arrays.asList("CH-048-02", "虹桥CAT048", "CAT048", "1.32", "4000", "MULTICAST",
                         "239.1.1.14", "5004", "1", "1400", "true", "RDR-SHA-01"),
-                size -> radarService.listChannels(0, size).getItems(),
+                (page, size) -> radarService.listChannels(page, size).getItems(),
                 AsterixChannelRow::getCode,
                 row -> Arrays.asList(
                         row.getCode(), row.getName(), row.getCategory(), nz(row.getEdition()),
@@ -483,7 +483,7 @@ public class EntitySchemas {
             return "";
         }
         Map<String, String> idToCode = new HashMap<>();
-        for (RadarSiteRow site : radarService.listSites(0, 500).getItems()) {
+        for (RadarSiteRow site : allRadarSites()) {
             idToCode.put(site.getId(), site.getCode());
         }
         return row.getBoundSiteIds().stream()
@@ -509,7 +509,7 @@ public class EntitySchemas {
 
     private Map<String, String> navCodeIndex() {
         Map<String, String> index = new HashMap<>();
-        for (NavPointRow point : navPointService.list(0, 500).getItems()) {
+        for (NavPointRow point : allNavigationPoints()) {
             index.put(point.getCode(), point.getId());
         }
         return index;
@@ -517,10 +517,34 @@ public class EntitySchemas {
 
     private Map<String, String> siteCodeIndex() {
         Map<String, String> index = new HashMap<>();
-        for (RadarSiteRow site : radarService.listSites(0, 500).getItems()) {
+        for (RadarSiteRow site : allRadarSites()) {
             index.put(site.getCode(), site.getId());
         }
         return index;
+    }
+
+    private List<NavPointRow> allNavigationPoints() {
+        List<NavPointRow> rows = new ArrayList<>();
+        int page = 0;
+        while (true) {
+            List<NavPointRow> batch = navPointService.list(page++, 200).getItems();
+            rows.addAll(batch);
+            if (batch.size() < 200) {
+                return rows;
+            }
+        }
+    }
+
+    private List<RadarSiteRow> allRadarSites() {
+        List<RadarSiteRow> rows = new ArrayList<>();
+        int page = 0;
+        while (true) {
+            List<RadarSiteRow> batch = radarService.listSites(page++, 200).getItems();
+            rows.addAll(batch);
+            if (batch.size() < 200) {
+                return rows;
+            }
+        }
     }
 
     // ---- 值转换辅助 ----

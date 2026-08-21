@@ -153,4 +153,25 @@ class NavPointApiTest {
                                 + "\"longitude\":121.0,\"latitude\":31.0}"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void referencedManualPointCannotBeDeleted() throws Exception {
+        MvcResult found = mockMvc.perform(get("/api/nav-point").param("size", "200")).andReturn();
+        String id = null;
+        int revision = 0;
+        for (Object item : com.jayway.jsonpath.JsonPath.<java.util.List<Object>>read(
+                found.getResponse().getContentAsString(), "$.items")) {
+            java.util.Map<String, Object> row = (java.util.Map<String, Object>) item;
+            if ("AND".equals(row.get("code"))) {
+                id = (String) row.get("id");
+                revision = ((Number) row.get("revision")).intValue();
+            }
+        }
+        assertThat(id).isNotNull();
+
+        mockMvc.perform(delete("/api/nav-point/{id}", id).param("revision", String.valueOf(revision)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("航路引用")));
+    }
 }

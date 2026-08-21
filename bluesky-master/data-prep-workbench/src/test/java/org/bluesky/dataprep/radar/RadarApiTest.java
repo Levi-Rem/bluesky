@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -110,5 +111,26 @@ class RadarApiTest {
                         .content("{\"code\":\"RDR-T1\",\"name\":\"坏SAC\",\"sac\":999,\"sic\":20,"
                                 + "\"longitude\":121.5,\"latitude\":31.1}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void cat048BoundSiteCannotBeDeleted() throws Exception {
+        MvcResult list = mockMvc.perform(get("/api/radar-site").param("size", "200")).andReturn();
+        String siteId = null;
+        int revision = 0;
+        for (Object item : com.jayway.jsonpath.JsonPath.<java.util.List<Object>>read(
+                list.getResponse().getContentAsString(), "$.items")) {
+            java.util.Map<String, Object> row = (java.util.Map<String, Object>) item;
+            if ("RDR-SHA-01".equals(row.get("code"))) {
+                siteId = (String) row.get("id");
+                revision = ((Number) row.get("revision")).intValue();
+            }
+        }
+
+        mockMvc.perform(delete("/api/radar-site/{id}", siteId)
+                        .param("revision", String.valueOf(revision)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("CAT048")));
     }
 }

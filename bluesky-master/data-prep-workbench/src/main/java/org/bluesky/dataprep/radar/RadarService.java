@@ -84,7 +84,11 @@ public class RadarService {
             throw ApiException.notFound("逻辑雷达站不存在：" + id);
         }
         Guards.requireEditableSource(current.getSourceType(), "删除");
+        if (mapper.countActiveCat048Bindings(id) > 0) {
+            throw ApiException.conflict("逻辑雷达站正被 CAT048 通道绑定，不能删除：" + current.getCode());
+        }
         Guards.requireUpdated(mapper.markSiteDeleted(id, revision), id);
+        mapper.markSiteBindingsDeleted(id);
         revisionService.increment();
     }
 

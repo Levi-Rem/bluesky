@@ -58,7 +58,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { ApiError, create, get, list, remove, update } from '../api/client';
+import { ApiError, create, get, listAll, remove, update } from '../api/client';
 import type { DrawerConfig, FieldConfig } from '../pages/config';
 
 const props = defineProps<{
@@ -103,9 +103,9 @@ async function pack(field: FieldConfig, record: Record<string, unknown>): Promis
     const ids = Array.isArray(record.boundSiteIds) ? (record.boundSiteIds as string[]) : [];
     const codes: string[] = [];
     if (ids.length > 0) {
-      const sites = await list<Record<string, unknown>>('radar-site', 0, 500);
+      const sites = await listAll<Record<string, unknown>>('radar-site');
       for (const id of ids) {
-        const site = sites.items.find(item => item.id === id);
+        const site = sites.find(item => item.id === id);
         if (site) {
           codes.push(String(site.code));
         }
@@ -143,8 +143,8 @@ async function unpack(field: FieldConfig, raw: unknown): Promise<unknown> {
   }
   if (field.pack === 'segments') {
     const navIndex = new Map<string, string>();
-    const navPage = await list<Record<string, unknown>>('nav-point', 0, 500);
-    for (const item of navPage.items) {
+    const navPoints = await listAll<Record<string, unknown>>('nav-point');
+    for (const item of navPoints) {
       navIndex.set(String(item.code), String(item.id));
     }
     return value
@@ -177,8 +177,8 @@ async function unpack(field: FieldConfig, raw: unknown): Promise<unknown> {
   }
   if (field.pack === 'boundSites') {
     const siteIndex = new Map<string, string>();
-    const sites = await list<Record<string, unknown>>('radar-site', 0, 500);
-    for (const item of sites.items) {
+    const sites = await listAll<Record<string, unknown>>('radar-site');
+    for (const item of sites) {
       siteIndex.set(String(item.code), String(item.id));
     }
     return value

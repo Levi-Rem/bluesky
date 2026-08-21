@@ -32,10 +32,11 @@ class MapApiTest {
                 .andExpect(jsonPath("$.layers.length()").value(5))
                 .andExpect(jsonPath("$.layers[0].category").value("NAVIGATION"))
                 .andExpect(jsonPath("$.layers[0].count").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
+                .andExpect(jsonPath("$.layers[0].features[0].revision").isNumber())
                 .andExpect(jsonPath("$.layers[1].category").value("AIRSPACE"))
-                .andExpect(jsonPath("$.layers[1].count").value(3))
+                .andExpect(jsonPath("$.layers[1].count").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
                 .andExpect(jsonPath("$.layers[2].category").value("AIRWAY"))
-                .andExpect(jsonPath("$.layers[2].count").value(3))
+                .andExpect(jsonPath("$.layers[2].count").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
                 .andExpect(jsonPath("$.layers[3].category").value("WEATHER"))
                 .andExpect(jsonPath("$.layers[3].count").value(org.hamcrest.Matchers.greaterThanOrEqualTo(4)))
                 .andExpect(jsonPath("$.layers[4].category").value("RADAR"))
@@ -145,5 +146,50 @@ class MapApiTest {
                         .contentType(APPLICATION_JSON)
                         .content("{\"operations\":[]}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void mapCreatesEntitiesAndSequentiallyUpdatesSameRevision() throws Exception {
+        mockMvc.perform(put("/api/map/features")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"operations\":["
+                                + "{\"operationType\":\"CREATE\",\"entityType\":\"nav-point\","
+                                + "\"entityId\":\"\",\"revision\":0,"
+                                + "\"geometry\":\"{\\\"type\\\":\\\"Point\\\",\\\"coordinates\\\":[122,32]}\","
+                                + "\"properties\":{\"code\":\"MAP-N1\",\"name\":\"地图新增点\"}},"
+                                + "{\"operationType\":\"CREATE\",\"entityType\":\"airspace\","
+                                + "\"entityId\":\"\",\"revision\":0,"
+                                + "\"geometry\":\"{\\\"type\\\":\\\"Polygon\\\",\\\"coordinates\\\":[[[120,30],[121,30],[121,31],[120,30]]]}\","
+                                + "\"properties\":{\"code\":\"MAP-A1\",\"name\":\"地图新增区\"}}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(2));
+
+        MvcResult navList = mockMvc.perform(get("/api/nav-point").param("size", "200")).andReturn();
+        String navId = null;
+        for (Object item : com.jayway.jsonpath.JsonPath.<java.util.List<Object>>read(
+                navList.getResponse().getContentAsString(), "$.items")) {
+            if ("MAP-N1".equals(((java.util.Map<String, Object>) item).get("code"))) {
+                navId = (String) ((java.util.Map<String, Object>) item).get("id");
+            }
+        }
+        org.assertj.core.api.Assertions.assertThat(navId).isNotNull();
+
+        mockMvc.perform(put("/api/map/features")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"operations\":["
+                                + "{\"operationType\":\"UPDATE_GEOMETRY\",\"entityType\":\"nav-point\","
+                                + "\"entityId\":\"" + navId + "\",\"revision\":0,"
+                                + "\"geometry\":\"{\\\"type\\\":\\\"Point\\\",\\\"coordinates\\\":[123,33]}\"},"
+                                + "{\"operationType\":\"UPDATE_PROPERTIES\",\"entityType\":\"nav-point\","
+                                + "\"entityId\":\"" + navId + "\",\"revision\":0,"
+                                + "\"properties\":{\"name\":\"连续修改成功\"}}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(2));
+
+        mockMvc.perform(get("/api/nav-point/{id}", navId))
+                .andExpect(jsonPath("$.longitude").value(123.0))
+                .andExpect(jsonPath("$.latitude").value(33.0))
+                .andExpect(jsonPath("$.name").value("连续修改成功"))
+                .andExpect(jsonPath("$.revision").value(2));
     }
 }

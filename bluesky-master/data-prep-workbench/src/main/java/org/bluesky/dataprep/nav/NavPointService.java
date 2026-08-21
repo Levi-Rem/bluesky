@@ -76,6 +76,9 @@ public class NavPointService {
     public void delete(String id, int revision) {
         NavPointRow current = get(id);
         Guards.requireEditableSource(current.getSourceType(), "删除");
+        if (mapper.countActiveAirwayReferences(id) > 0) {
+            throw ApiException.conflict("导航点正被有效航路引用，不能删除：" + current.getCode());
+        }
         Guards.requireUpdated(mapper.markDeleted(id, revision), id);
         revisionService.increment();
     }
