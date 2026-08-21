@@ -7,6 +7,10 @@ spring:
   flyway:
     enabled: true
 
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
 logging:
   level:
     root: WARN
