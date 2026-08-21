@@ -71,6 +71,8 @@
       />
     </main>
 
+    <MapEditor v-if="mapOpen" @close="mapOpen = false" />
+
     <div class="toast" :class="{ error: toastTone === 'error' }" v-show="toastText">
       {{ toastText }}
     </div>
@@ -80,6 +82,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, provide, ref } from 'vue';
 import DataTable from './components/DataTable.vue';
+import MapEditor from './components/MapEditor.vue';
 import { pages, pageTitles } from './pages/config';
 import { useHealthStore } from './stores/health';
 
@@ -89,6 +92,7 @@ const airspacePages: string[] = ['navigation', 'airport', 'airspace', 'airway'];
 const currentPage = ref<keyof typeof pages>('navigation');
 const openMenu = ref('');
 const tableRef = ref<InstanceType<typeof DataTable>>();
+const mapOpen = ref(false);
 
 const toastText = ref('');
 const toastTone = ref<'ok' | 'error'>('ok');
@@ -117,7 +121,7 @@ function switchPage(key: string) {
 function editAction(action: string) {
   openMenu.value = '';
   if (action === 'map') {
-    toast('地图编辑将在地图编辑器任务中开放');
+    mapOpen.value = true;
     return;
   }
   if (action === 'export') {
