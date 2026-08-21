@@ -73,6 +73,26 @@
 
     <MapEditor v-if="mapOpen" @close="mapOpen = false" />
 
+    <EditDrawer
+      v-if="drawer"
+      :config="drawer.config"
+      :mode="drawer.mode"
+      :record-id="drawer.recordId"
+      :revision="drawer.revision"
+      :warning="drawer.warning"
+      @close="drawer = null"
+      @saved="onSaved"
+      @toast="toast"
+    />
+
+    <ImportWizard
+      v-if="wizardOpen"
+      :default-entity="createEntityOf(currentPage)"
+      @close="wizardOpen = false"
+      @imported="onSaved"
+      @toast="toast"
+    />
+
     <div class="toast" :class="{ error: toastTone === 'error' }" v-show="toastText">
       {{ toastText }}
     </div>
@@ -83,7 +103,17 @@
 import { onBeforeUnmount, onMounted, provide, ref } from 'vue';
 import DataTable from './components/DataTable.vue';
 import MapEditor from './components/MapEditor.vue';
-import { pages, pageTitles } from './pages/config';
+import EditDrawer from './components/EditDrawer.vue';
+import ImportWizard from './components/ImportWizard.vue';
+import {
+  createEntityOf,
+  drawerConfigs,
+  entityOfRow,
+  pages,
+  pageTitles,
+  type DrawerConfig
+} from './pages/config';
+import { exportUrl } from './api/client';
 import { useHealthStore } from './stores/health';
 
 const healthStore = useHealthStore();
@@ -93,6 +123,17 @@ const currentPage = ref<keyof typeof pages>('navigation');
 const openMenu = ref('');
 const tableRef = ref<InstanceType<typeof DataTable>>();
 const mapOpen = ref(false);
+const wizardOpen = ref(false);
+
+interface DrawerState {
+  config: DrawerConfig;
+  mode: 'view' | 'edit' | 'create';
+  recordId?: string;
+  revision?: number;
+  warning?: string;
+}
+
+const drawer = ref<DrawerState | null>(null);
 
 const toastText = ref('');
 const toastTone = ref<'ok' | 'error'>('ok');
@@ -125,22 +166,56 @@ function editAction(action: string) {
     return;
   }
   if (action === 'export') {
-    toast('导出向导将在数据编辑任务中开放');
+    const entity = createEntityOf(currentPage.value);
+    if (!entity) {
+      toast('当前页面不支持导出', 'error');
+      return;
+    }
+    window.open(exportUrl(entity), '_blank');
+    toast('已开始导出 Excel');
     return;
   }
   if (action === 'import') {
-    toast('导入向导将在数据编辑任务中开放');
+    wizardOpen.value = true;
     return;
   }
-  toast('新建窗口将在编辑抽屉任务中开放');
+  const entity = createEntityOf(currentPage.value);
+  if (!entity || !drawerConfigs[entity]) {
+    toast('当前页面不支持新建', 'error');
+    return;
+  }
+  drawer.value = { config: drawerConfigs[entity], mode: 'create' };
+}
+
+function openRowDrawer(row: Record<string, unknown>, mode: 'view' | 'edit') {
+  const entity = entityOfRow(currentPage.value, row);
+  if (!entity || !drawerConfigs[entity]) {
+    toast('该类数据为二期只读数据', 'error');
+    return;
+  }
+  drawer.value = {
+    config: drawerConfigs[entity],
+    mode,
+    recordId: String(row.id ?? ''),
+    revision: Number(row.revision ?? 0),
+    warning:
+      row.sourceType === 'BLUESKY'
+        ? 'BLUESKY 来源数据为只读，保存将被服务端拒绝'
+        : undefined
+  };
 }
 
 function onView(row: Record<string, unknown>) {
-  toast(`查看 ${String(row.code)}`);
+  openRowDrawer(row, 'view');
 }
 
 function onEdit(row: Record<string, unknown>) {
-  toast(`编辑 ${String(row.code)}`);
+  openRowDrawer(row, 'edit');
+}
+
+function onSaved() {
+  tableRef.value?.refresh();
+  healthStore.bumpRevision();
 }
 
 let pollTimer = 0;
