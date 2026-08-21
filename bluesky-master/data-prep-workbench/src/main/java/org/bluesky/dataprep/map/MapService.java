@@ -258,17 +258,17 @@ public class MapService {
         List<Map<String, Object>> selectAirways();
 
         /** 航路折线顶点：每段贡献起点+终点，按段序、再按起/终排序。 */
-        @Select("SELECT s.airway_id AS airwayId, s.order_no * 2 AS seq, sp.longitude, sp.latitude "
+        @Select("SELECT s.airway_id AS \"airwayId\", s.order_no * 2 AS seq, sp.longitude, sp.latitude "
                 + "FROM airway_segment s JOIN navigation_point sp ON sp.id = s.start_point_id "
                 + "WHERE s.deleted = FALSE "
                 + "UNION ALL "
                 + "SELECT s.airway_id, s.order_no * 2 + 1, ep.longitude, ep.latitude "
                 + "FROM airway_segment s JOIN navigation_point ep ON ep.id = s.end_point_id "
                 + "WHERE s.deleted = FALSE "
-                + "ORDER BY airwayId, seq")
+                + "ORDER BY 1, 2")
         List<Map<String, Object>> selectAirwayVertices();
 
-        @Select("SELECT p.id, w.id AS windFieldId, w.code, w.name, p.longitude, p.latitude "
+        @Select("SELECT p.id, w.id AS \"windFieldId\", w.code, w.name, p.longitude, p.latitude "
                 + "FROM wind_field_point p JOIN wind_field w ON w.id = p.wind_field_id "
                 + "WHERE p.deleted = FALSE AND w.deleted = FALSE")
         List<Map<String, Object>> selectWindPoints();
@@ -277,7 +277,7 @@ public class MapService {
                 + "FROM significant_weather_area WHERE deleted = FALSE")
         List<Map<String, Object>> selectSigWeatherAreas();
 
-        @Select("SELECT id, code, name, longitude, latitude, maximum_range_nm AS maximumRangeNm "
+        @Select("SELECT id, code, name, longitude, latitude, maximum_range_nm AS \"maximumRangeNm\" "
                 + "FROM logical_radar_site WHERE deleted = FALSE")
         List<Map<String, Object>> selectRadarSites();
     }

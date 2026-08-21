@@ -1,0 +1,2 @@
+-- 导入批次状态值扩容：COMPLETED_WITH_ERRORS(21) 超出原 VARCHAR(16)
+ALTER TABLE import_batch ALTER COLUMN batch_status VARCHAR(24);
