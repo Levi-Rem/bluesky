@@ -15,3 +15,5 @@ Entries are workspace records, not authoritative runtime decisions.
 | 2026-08-15 | artifact | docs/aegis/work/2026-08-15-code-doc-review/impact-statement-draft.json | 代码-文档一致性审阅 impact statement draft |
 | 2026-08-15 | artifact | docs/aegis/work/2026-08-15-code-doc-review/todo-checkpoint-draft.json | 代码-文档一致性审阅 todo checkpoint draft |
 | 2026-08-15 | artifact | docs/aegis/work/2026-08-15-code-doc-review/drift-check-draft.json | 代码-文档一致性审阅 drift check draft |
+| 2026-08-21 | plan | docs/aegis/plans/2026-08-21-data-prep-workbench.md | 数据准备与分析工作台独立模块实施计划 |
+| 2026-08-21 | work | docs/aegis/work/2026-08-21-data-prep-workbench/task-start-snapshot.md | 数据准备与分析工作台任务快照 |
