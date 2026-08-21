@@ -254,11 +254,11 @@ public class MapService {
     @Mapper
     public interface MapRefMapper {
 
-        @Select("SELECT id, code, name FROM airway WHERE deleted = FALSE")
+        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\" FROM airway WHERE deleted = FALSE")
         List<Map<String, Object>> selectAirways();
 
         /** 航路折线顶点：每段贡献起点+终点，按段序、再按起/终排序。 */
-        @Select("SELECT s.airway_id AS \"airwayId\", s.order_no * 2 AS seq, sp.longitude, sp.latitude "
+        @Select("SELECT s.airway_id AS \"airwayId\", s.order_no * 2 AS \"seq\", sp.longitude AS \"longitude\", sp.latitude AS \"latitude\" "
                 + "FROM airway_segment s JOIN navigation_point sp ON sp.id = s.start_point_id "
                 + "WHERE s.deleted = FALSE "
                 + "UNION ALL "
@@ -268,16 +268,16 @@ public class MapService {
                 + "ORDER BY 1, 2")
         List<Map<String, Object>> selectAirwayVertices();
 
-        @Select("SELECT p.id, w.id AS \"windFieldId\", w.code, w.name, p.longitude, p.latitude "
+        @Select("SELECT p.id AS \"id\", w.id AS \"windFieldId\", w.code AS \"code\", w.name AS \"name\", p.longitude AS \"longitude\", p.latitude AS \"latitude\" "
                 + "FROM wind_field_point p JOIN wind_field w ON w.id = p.wind_field_id "
                 + "WHERE p.deleted = FALSE AND w.deleted = FALSE")
         List<Map<String, Object>> selectWindPoints();
 
-        @Select("SELECT id, code, name, CAST(boundary AS VARCHAR(16384)) AS boundary "
+        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", CAST(boundary AS VARCHAR(16384)) AS \"boundary\" "
                 + "FROM significant_weather_area WHERE deleted = FALSE")
         List<Map<String, Object>> selectSigWeatherAreas();
 
-        @Select("SELECT id, code, name, longitude, latitude, maximum_range_nm AS \"maximumRangeNm\" "
+        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", longitude AS \"longitude\", latitude AS \"latitude\", maximum_range_nm AS \"maximumRangeNm\" "
                 + "FROM logical_radar_site WHERE deleted = FALSE")
         List<Map<String, Object>> selectRadarSites();
     }

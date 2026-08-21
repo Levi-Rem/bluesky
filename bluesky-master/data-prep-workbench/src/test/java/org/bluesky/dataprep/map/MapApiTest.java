@@ -45,7 +45,18 @@ class MapApiTest {
     @Test
     void airwayGeometryIsLineStringFromSegments() throws Exception {
         mockMvc.perform(get("/api/map/layers"))
-                .andExpect(jsonPath("$.layers[2].features[?(@.code=='A593')].geometry.type").value("LineString"));
+                .andExpect(jsonPath("$.layers[2].features[?(@.code=='A593')].geometry.type").value("LineString"))
+                .andExpect(jsonPath(
+                        "$.layers[2].features[?(@.code=='A593')].geometry.coordinates[0][0]").exists());
+    }
+
+    @Test
+    void weatherAndRadarCoordinatesAreNumeric() throws Exception {
+        mockMvc.perform(get("/api/map/layers"))
+                .andExpect(jsonPath(
+                        "$.layers[?(@.category=='WEATHER')].features[0].geometry.coordinates[0]").exists())
+                .andExpect(jsonPath(
+                        "$.layers[?(@.category=='RADAR')].features[0].geometry.coordinates[0][0]").exists());
     }
 
     @Test

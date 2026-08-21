@@ -70,12 +70,12 @@ public class WeatherController {
     @Mapper
     public interface WeatherRefMapper {
 
-        @Select("SELECT w.id, w.code, w.name, a.icao, w.valid_from AS \"validFrom\", w.valid_to AS \"validTo\", w.status "
+        @Select("SELECT w.id AS \"id\", w.code AS \"code\", w.name AS \"name\", a.icao AS \"icao\", w.valid_from AS \"validFrom\", w.valid_to AS \"validTo\", w.status AS \"status\" "
                 + "FROM airport_weather w JOIN airport a ON a.id = w.airport_id "
                 + "WHERE w.deleted = FALSE")
         List<Map<String, Object>> selectAirportWeather();
 
-        @Select("SELECT id, code, name, valid_from AS \"validFrom\", valid_to AS \"validTo\", status "
+        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", valid_from AS \"validFrom\", valid_to AS \"validTo\", status AS \"status\" "
                 + "FROM significant_weather_area WHERE deleted = FALSE")
         List<Map<String, Object>> selectSigWeather();
     }
