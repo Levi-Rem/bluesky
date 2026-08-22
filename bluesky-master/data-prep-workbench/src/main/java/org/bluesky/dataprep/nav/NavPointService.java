@@ -16,7 +16,7 @@ import java.util.UUID;
 public class NavPointService {
 
     static final Set<String> POINT_TYPES = new HashSet<>(Arrays.asList(
-            "FIX", "VOR", "NDB", "DME", "VOR_DME", "ILS", "OTHER"));
+            "FIX", "AIRPORT", "VOR", "NDB", "DME", "VOR_DME", "ILS", "OTHER"));
 
     private final NavPointMapper mapper;
     private final RevisionService revisionService;

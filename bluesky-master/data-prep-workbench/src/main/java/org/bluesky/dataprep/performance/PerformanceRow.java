@@ -3,188 +3,97 @@ package org.bluesky.dataprep.performance;
 import javax.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
 
+/** 展平的机型高度层性能记录。 */
 public class PerformanceRow {
+    public String id;
+    public String aircraftId;
+    @NotBlank(message = "机型编码必填") public String code;
+    @NotBlank(message = "名称必填") public String name;
+    public String manufacturer;
+    public String modelName;
+    public String engineType;
+    public String icaoWakeCategory;
+    public String reacatWakeCategory;
+    public Integer maximumTakeoffWeightKg;
+    public String performanceCategory;
+    public String status = "ENABLED";
 
-    private String id;
-    @NotBlank(message = "机型编码必填")
-    private String code;
-    @NotBlank(message = "名称必填")
-    private String name;
-    private String manufacturer;
-    private String modelName;
-    private String performanceSource = "MANUAL";
-    private String engineType;
-    private String wakeTurbulenceCategory;
-    private Integer maximumTakeoffWeightKg;
-    private Integer maximumAltitudeFt;
-    private Double maximumMach;
-    private Double defaultBankAngleDeg;
-    private String status = "ENABLED";
-    private String sourceType = "MANUAL";
-    private String sourceReference;
-    private int revision;
-    private LocalDateTime createdAt;
-    private String createdBy = "local";
-    private LocalDateTime updatedAt;
-    private String updatedBy = "local";
+    public Integer sequenceNo;
+    @NotBlank(message = "高度层必填") public String altitudeLayer;
+    public String holdingSpeedLow;
+    public String holdingSpeedMiddle;
+    public String holdingSpeedHigh;
+    public String takeoffSpeed;
+    public Integer takeoffDurationS;
+    public Integer takeoffAltitudeFt;
+    public Double takeoffDistanceNm;
+    public String landingSpeed;
+    public Double radarCrossSection;
+    public String maximumSpeed;
+    public String maximumAltitudeLayer;
+    public Integer maximumTurn;
+    public Boolean machCapable;
+    public Boolean jetAircraft;
+    public Integer standardTurn;
 
-    public String getId() {
-        return id;
-    }
+    public Integer turnResponse1;
+    public Integer turnResponse2;
+    public Integer turnResponse3;
+    public Integer accelerationResponse1;
+    public Integer accelerationResponse2;
+    public Integer accelerationResponse3;
+    public Integer decelerationResponse1;
+    public Integer decelerationResponse2;
+    public Integer decelerationResponse3;
+    public Integer climbResponse1;
+    public Integer climbResponse2;
+    public Integer climbResponse3;
+    public Integer descentResponse1;
+    public Integer descentResponse2;
+    public Integer descentResponse3;
 
-    public void setId(String id) {
-        this.id = id;
-    }
+    public Integer climbRateFtMin;
+    public Integer descentRateFtMin;
+    public Integer accelerationKtsMin;
+    public Integer decelerationKtsMin;
+    public String cruiseSpeed;
+    public String stallSpeed;
+    public String climbSpeed;
+    public String descentSpeed;
 
-    public String getCode() {
-        return code;
-    }
+    public int revision;
+    public LocalDateTime createdAt;
+    public String createdBy = "local";
+    public LocalDateTime updatedAt;
+    public String updatedBy = "local";
 
-    public void setCode(String code) {
-        this.code = code;
-    }
+    public String getId() { return id; }
+    public String getCode() { return code; }
+    public String getName() { return name; }
+    public String getManufacturer() { return manufacturer; }
+    public String getModelName() { return modelName; }
+    public String getEngineType() { return engineType; }
+    public String getIcaoWakeCategory() { return icaoWakeCategory; }
+    public String getReacatWakeCategory() { return reacatWakeCategory; }
+    public Integer getMaximumTakeoffWeightKg() { return maximumTakeoffWeightKg; }
+    public String getAltitudeLayer() { return altitudeLayer; }
+    public String getCruiseSpeed() { return cruiseSpeed; }
+    public Integer getClimbRateFtMin() { return climbRateFtMin; }
+    public Integer getDescentRateFtMin() { return descentRateFtMin; }
+    public int getRevision() { return revision; }
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getManufacturer() {
-        return manufacturer;
-    }
-
-    public void setManufacturer(String manufacturer) {
-        this.manufacturer = manufacturer;
-    }
-
-    public String getModelName() {
-        return modelName;
-    }
-
-    public void setModelName(String modelName) {
-        this.modelName = modelName;
-    }
-
-    public String getPerformanceSource() {
-        return performanceSource;
-    }
-
-    public void setPerformanceSource(String performanceSource) {
-        this.performanceSource = performanceSource;
-    }
-
-    public String getEngineType() {
-        return engineType;
-    }
-
-    public void setEngineType(String engineType) {
-        this.engineType = engineType;
-    }
-
-    public String getWakeTurbulenceCategory() {
-        return wakeTurbulenceCategory;
-    }
-
-    public void setWakeTurbulenceCategory(String wakeTurbulenceCategory) {
-        this.wakeTurbulenceCategory = wakeTurbulenceCategory;
-    }
-
-    public Integer getMaximumTakeoffWeightKg() {
-        return maximumTakeoffWeightKg;
-    }
-
-    public void setMaximumTakeoffWeightKg(Integer maximumTakeoffWeightKg) {
-        this.maximumTakeoffWeightKg = maximumTakeoffWeightKg;
-    }
-
-    public Integer getMaximumAltitudeFt() {
-        return maximumAltitudeFt;
-    }
-
-    public void setMaximumAltitudeFt(Integer maximumAltitudeFt) {
-        this.maximumAltitudeFt = maximumAltitudeFt;
-    }
-
-    public Double getMaximumMach() {
-        return maximumMach;
-    }
-
-    public void setMaximumMach(Double maximumMach) {
-        this.maximumMach = maximumMach;
-    }
-
-    public Double getDefaultBankAngleDeg() {
-        return defaultBankAngleDeg;
-    }
-
-    public void setDefaultBankAngleDeg(Double defaultBankAngleDeg) {
-        this.defaultBankAngleDeg = defaultBankAngleDeg;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getSourceType() {
-        return sourceType;
-    }
-
-    public void setSourceType(String sourceType) {
-        this.sourceType = sourceType;
-    }
-
-    public String getSourceReference() {
-        return sourceReference;
-    }
-
-    public void setSourceReference(String sourceReference) {
-        this.sourceReference = sourceReference;
-    }
-
-    public int getRevision() {
-        return revision;
-    }
-
-    public void setRevision(int revision) {
-        this.revision = revision;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public String getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(String createdBy) {
-        this.createdBy = createdBy;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public String getUpdatedBy() {
-        return updatedBy;
-    }
-
-    public void setUpdatedBy(String updatedBy) {
-        this.updatedBy = updatedBy;
-    }
+    public void setId(String value) { id = value; }
+    public void setCode(String value) { code = value; }
+    public void setName(String value) { name = value; }
+    public void setManufacturer(String value) { manufacturer = value; }
+    public void setModelName(String value) { modelName = value; }
+    public void setEngineType(String value) { engineType = value; }
+    public void setIcaoWakeCategory(String value) { icaoWakeCategory = value; }
+    public void setReacatWakeCategory(String value) { reacatWakeCategory = value; }
+    public void setMaximumTakeoffWeightKg(Integer value) { maximumTakeoffWeightKg = value; }
+    public void setAltitudeLayer(String value) { altitudeLayer = value; }
+    public void setCruiseSpeed(String value) { cruiseSpeed = value; }
+    public void setClimbRateFtMin(Integer value) { climbRateFtMin = value; }
+    public void setDescentRateFtMin(Integer value) { descentRateFtMin = value; }
+    public void setRevision(int value) { revision = value; }
 }

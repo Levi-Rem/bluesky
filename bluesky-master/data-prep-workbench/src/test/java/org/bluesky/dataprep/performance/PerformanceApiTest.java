@@ -1,5 +1,6 @@
 package org.bluesky.dataprep.performance;
 
+import com.jayway.jsonpath.JsonPath;
 import org.bluesky.dataprep.DataPrepApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,62 +21,64 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class PerformanceApiTest {
-
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
     @Test
-    void seededOpenApRowsListed() throws Exception {
+    void listUsesLayerStructureWithoutSourceFields() throws Exception {
         mockMvc.perform(get("/api/performance"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
-                .andExpect(jsonPath("$.items[?(@.code=='A320')].performanceSource").value("OPENAP"))
-                .andExpect(jsonPath("$.items[?(@.code=='A320')].maximumMach").value(0.82))
-                .andExpect(jsonPath("$.items[?(@.code=='C919')].performanceSource").value("MANUAL"));
+                .andExpect(jsonPath("$.items[?(@.code=='A320')].altitudeLayer").value("F398"))
+                .andExpect(jsonPath("$.items[0].performanceSource").doesNotExist())
+                .andExpect(jsonPath("$.items[0].sourceType").doesNotExist());
     }
 
     @Test
-    void manualCreateAndUpdateAllowed() throws Exception {
-        MvcResult created = mockMvc.perform(post("/api/performance")
+    void createLayerAndSynchronizeCommonPerformance() throws Exception {
+        MvcResult first = mockMvc.perform(post("/api/performance")
                         .contentType(APPLICATION_JSON)
-                        .content("{\"code\":\"ARJ21\",\"name\":\"ARJ21\",\"manufacturer\":\"COMAC\","
-                                + "\"performanceSource\":\"MANUAL\",\"wakeTurbulenceCategory\":\"M\","
-                                + "\"maximumAltitudeFt\":35000,\"maximumMach\":0.78}"))
+                        .content("{\"code\":\"ARJ21\",\"name\":\"ARJ21\",\"manufacturer\":\"COMAC\","+
+                                "\"icaoWakeCategory\":\"M\",\"reacatWakeCategory\":\"M\","+
+                                "\"altitudeLayer\":\"F100\",\"cruiseSpeed\":\"N0300\","+
+                                "\"holdingSpeedLow\":\"N0180\",\"turnResponse1\":50}"))
                 .andExpect(status().isOk())
                 .andReturn();
-        String id = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        String firstId = JsonPath.read(first.getResponse().getContentAsString(), "$.id");
 
-        mockMvc.perform(put("/api/performance/{id}", id)
-                        .contentType(APPLICATION_JSON)
-                        .content("{\"code\":\"ARJ21\",\"name\":\"ARJ21-700\",\"manufacturer\":\"COMAC\","
-                                + "\"performanceSource\":\"MANUAL\",\"maximumAltitudeFt\":36000,"
-                                + "\"maximumMach\":0.78,\"revision\":0}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.modelName").doesNotExist())
-                .andExpect(jsonPath("$.name").value("ARJ21-700"));
-    }
-
-    @Test
-    void openApRowReadOnly() throws Exception {
-        MvcResult list = mockMvc.perform(get("/api/performance")).andReturn();
-        String a320Id = null;
-        for (Object item : com.jayway.jsonpath.JsonPath.<java.util.List<Object>>read(
-                list.getResponse().getContentAsString(), "$.items")) {
-            if ("A320".equals(((java.util.Map<String, Object>) item).get("code"))) {
-                a320Id = (String) ((java.util.Map<String, Object>) item).get("id");
-            }
-        }
-        mockMvc.perform(put("/api/performance/{id}", a320Id)
-                        .contentType(APPLICATION_JSON)
-                        .content("{\"code\":\"A320\",\"name\":\"尝试改\",\"performanceSource\":\"OPENAP\",\"revision\":0}"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void invalidSourceRejected() throws Exception {
         mockMvc.perform(post("/api/performance")
                         .contentType(APPLICATION_JSON)
-                        .content("{\"code\":\"X99\",\"name\":\"坏来源\",\"performanceSource\":\"WIKI\"}"))
+                        .content("{\"code\":\"ARJ21\",\"name\":\"ARJ21\",\"manufacturer\":\"COMAC\","+
+                                "\"icaoWakeCategory\":\"M\",\"reacatWakeCategory\":\"M\","+
+                                "\"altitudeLayer\":\"F200\",\"cruiseSpeed\":\"N0350\","+
+                                "\"holdingSpeedLow\":\"N0190\",\"turnResponse1\":66}"))
+                .andExpect(status().isOk());
+
+        MvcResult refreshed = mockMvc.perform(get("/api/performance/{id}", firstId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.holdingSpeedLow").value("N0190"))
+                .andExpect(jsonPath("$.turnResponse1").value(66))
+                .andExpect(jsonPath("$.cruiseSpeed").value("N0300"))
+                .andReturn();
+        int revision = JsonPath.read(refreshed.getResponse().getContentAsString(), "$.revision");
+
+        mockMvc.perform(put("/api/performance/{id}", firstId)
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"ARJ21\",\"name\":\"ARJ21-700\",\"manufacturer\":\"COMAC\","+
+                                "\"icaoWakeCategory\":\"M\",\"reacatWakeCategory\":\"M\","+
+                                "\"altitudeLayer\":\"F100\",\"cruiseSpeed\":\"N0310\","+
+                                "\"holdingSpeedLow\":\"N0200\",\"turnResponse1\":75,\"revision\":"+revision+"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("ARJ21-700"))
+                .andExpect(jsonPath("$.cruiseSpeed").value("N0310"));
+    }
+
+    @Test
+    void duplicateAltitudeLayerRejected() throws Exception {
+        String body = "{\"code\":\"TESTL\",\"name\":\"TESTL\",\"icaoWakeCategory\":\"L\","+
+                "\"reacatWakeCategory\":\"L\",\"altitudeLayer\":\"F050\"}";
+        mockMvc.perform(post("/api/performance").contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/performance").contentType(APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
     }
 }

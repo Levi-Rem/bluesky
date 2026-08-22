@@ -15,6 +15,8 @@ import org.bluesky.dataprep.performance.PerformanceService;
 import org.bluesky.dataprep.radar.AsterixChannelRow;
 import org.bluesky.dataprep.radar.RadarService;
 import org.bluesky.dataprep.radar.RadarSiteRow;
+import org.bluesky.dataprep.weather.WeatherAreaRow;
+import org.bluesky.dataprep.weather.WeatherAreaService;
 import org.bluesky.dataprep.weather.WindFieldRow;
 import org.bluesky.dataprep.weather.WindFieldService;
 import org.bluesky.dataprep.weather.WindPointRow;
@@ -31,7 +33,7 @@ import java.util.stream.Collectors;
 
 import static org.bluesky.dataprep.excel.ExcelColumn.col;
 
-/** 八类实体的 Excel 模式注册表：列定义 + 样例 + 导出行构建 + 导入应用。 */
+/** 实体的 Excel 模式注册表：列定义 + 样例 + 导出行构建 + 导入应用。 */
 @Component
 public class EntitySchemas {
 
@@ -39,6 +41,7 @@ public class EntitySchemas {
     private final AirportService airportService;
     private final AirspaceService airspaceService;
     private final AirwayService airwayService;
+    private final WeatherAreaService weatherAreaService;
     private final WindFieldService windFieldService;
     private final PerformanceService performanceService;
     private final RadarService radarService;
@@ -47,12 +50,14 @@ public class EntitySchemas {
 
     public EntitySchemas(NavPointService navPointService, AirportService airportService,
                          AirspaceService airspaceService, AirwayService airwayService,
-                         WindFieldService windFieldService, PerformanceService performanceService,
+                         WeatherAreaService weatherAreaService, WindFieldService windFieldService,
+                         PerformanceService performanceService,
                          RadarService radarService) {
         this.navPointService = navPointService;
         this.airportService = airportService;
         this.airspaceService = airspaceService;
         this.airwayService = airwayService;
+        this.weatherAreaService = weatherAreaService;
         this.windFieldService = windFieldService;
         this.performanceService = performanceService;
         this.radarService = radarService;
@@ -60,6 +65,7 @@ public class EntitySchemas {
         registerAirport();
         registerAirspace();
         registerAirway();
+        registerWeatherArea();
         registerWindField();
         registerPerformance();
         registerRadarSite();
@@ -266,34 +272,43 @@ public class EntitySchemas {
     private void registerPerformance() {
         List<ExcelColumn> cols = Arrays.asList(
                 col("code", "机型编码*"), col("name", "名称*"), col("manufacturer", "制造商"),
-                col("modelName", "型号"), col("performanceSource", "性能来源*(OPENAP/BADA/LEGACY/MANUAL)"),
-                col("engineType", "发动机类型"), col("wakeTurbulenceCategory", "尾流等级(L/M/H/J)"),
-                col("maximumTakeoffWeightKg", "最大起飞重量(千克)"), col("maximumAltitudeFt", "最大高度(英尺)"),
-                col("maximumMach", "最大马赫"), col("defaultBankAngleDeg", "默认坡度(度)"));
+                col("modelName", "型号"), col("engineType", "发动机类型"),
+                col("icaoWakeCategory", "ICAO尾流类别"), col("reacatWakeCategory", "RECAT尾流类别"),
+                col("maximumTakeoffWeightKg", "最大起飞重量(千克)"),
+                col("performanceCategory", "性能类别"), col("altitudeLayer", "高度层*"),
+                col("cruiseSpeed", "巡航速度"), col("climbRateFtMin", "爬升率(ft/min)"),
+                col("descentRateFtMin", "下降率(ft/min)"));
         schemas.put("performance", new EntitySchema<>(
                 "performance", "机型性能", cols,
-                Arrays.asList("B738", "波音737-800", "BOEING", "737-800", "OPENAP", "CFM56", "M",
-                        "79010", "41000", "0.82", "25"),
+                Arrays.asList("B738", "B738", "BOEING", "737-800", "CFM56", "M", "M",
+                        "79010", "H", "F100", "N0300", "2100", "1700"),
                 (page, size) -> performanceService.list(page, size).getItems(),
-                PerformanceRow::getCode,
+                row -> performanceExcelKey(row.getCode(), row.getIcaoWakeCategory(),
+                        row.getReacatWakeCategory(), row.getAltitudeLayer()),
                 row -> Arrays.asList(
                         row.getCode(), row.getName(), nz(row.getManufacturer()), nz(row.getModelName()),
-                        row.getPerformanceSource(), nz(row.getEngineType()), nz(row.getWakeTurbulenceCategory()),
-                        str(row.getMaximumTakeoffWeightKg()), str(row.getMaximumAltitudeFt()),
-                        str(row.getMaximumMach()), str(row.getDefaultBankAngleDeg())),
+                        nz(row.getEngineType()), nz(row.getIcaoWakeCategory()), nz(row.getReacatWakeCategory()),
+                        str(row.getMaximumTakeoffWeightKg()), nz(row.performanceCategory), row.getAltitudeLayer(),
+                        nz(row.getCruiseSpeed()), str(row.getClimbRateFtMin()), str(row.getDescentRateFtMin())),
                 (fields, existing) -> {
                     PerformanceRow row = new PerformanceRow();
+                    if (existing != null) {
+                        PerformanceRow prior = (PerformanceRow) existing;
+                        copyPerformance(prior, row);
+                    }
                     row.setCode(req(fields, "code", "机型编码"));
                     row.setName(req(fields, "name", "名称"));
                     row.setManufacturer(fields.get("manufacturer"));
                     row.setModelName(fields.get("modelName"));
-                    row.setPerformanceSource(req(fields, "performanceSource", "性能来源"));
                     row.setEngineType(fields.get("engineType"));
-                    row.setWakeTurbulenceCategory(fields.get("wakeTurbulenceCategory"));
+                    row.setIcaoWakeCategory(fields.get("icaoWakeCategory"));
+                    row.setReacatWakeCategory(fields.get("reacatWakeCategory"));
                     row.setMaximumTakeoffWeightKg(intg(fields, "maximumTakeoffWeightKg", "最大起飞重量", false));
-                    row.setMaximumAltitudeFt(intg(fields, "maximumAltitudeFt", "最大高度", false));
-                    row.setMaximumMach(dbl(fields, "maximumMach", "最大马赫", false));
-                    row.setDefaultBankAngleDeg(dbl(fields, "defaultBankAngleDeg", "默认坡度", false));
+                    row.performanceCategory = blankToNull(fields.get("performanceCategory"));
+                    row.setAltitudeLayer(req(fields, "altitudeLayer", "高度层"));
+                    row.setCruiseSpeed(blankToNull(fields.get("cruiseSpeed")));
+                    row.setClimbRateFtMin(intg(fields, "climbRateFtMin", "爬升率", false));
+                    row.setDescentRateFtMin(intg(fields, "descentRateFtMin", "下降率", false));
                     if (existing != null) {
                         PerformanceRow prior = (PerformanceRow) existing;
                         row.setRevision(prior.getRevision());
@@ -521,6 +536,55 @@ public class EntitySchemas {
             index.put(site.getCode(), site.getId());
         }
         return index;
+    }
+
+    private void registerWeatherArea() {
+        List<ExcelColumn> cols = Arrays.asList(
+                col("name", "名称*"),
+                col("weatherType", "类型*(WIND_SHEAR/MICROBURST/JET_STREAM/TURBULENCE/ADVECTION_FOG/RADIATION_FOG/THUNDERSTORM)"),
+                col("area", "区域*(DMS坐标空格点串)"), col("lowerLimit", "下限*(S四位高度)"),
+                col("upperLimit", "上限*(S四位高度)"));
+        schemas.put("weather", new EntitySchema<>(
+                "weather", "气象数据", cols,
+                Arrays.asList("浦东风切变", "WIND_SHEAR",
+                        "311200N1211800E 312400N1213600E 310600N1214800E", "S0000", "S3000"),
+                (page, size) -> weatherAreaService.list(page, size).getItems(),
+                WeatherAreaRow::getId,
+                row -> Arrays.asList(row.getName(), row.getWeatherType(), nz(row.getArea()),
+                        row.getLowerLimit(), row.getUpperLimit()),
+                (fields, existing) -> {
+                    WeatherAreaRow row = new WeatherAreaRow();
+                    row.setName(req(fields, "name", "名称"));
+                    row.setWeatherType(req(fields, "weatherType", "类型"));
+                    row.setArea(req(fields, "area", "区域"));
+                    row.setLowerLimit(req(fields, "lowerLimit", "下限"));
+                    row.setUpperLimit(req(fields, "upperLimit", "上限"));
+                    return weatherAreaService.create(row);
+                }));
+    }
+
+    private static void copyPerformance(PerformanceRow source, PerformanceRow target) {
+        target.aircraftId=source.aircraftId; target.status=source.status; target.performanceCategory=source.performanceCategory;
+        target.holdingSpeedLow=source.holdingSpeedLow; target.holdingSpeedMiddle=source.holdingSpeedMiddle;
+        target.holdingSpeedHigh=source.holdingSpeedHigh; target.takeoffSpeed=source.takeoffSpeed;
+        target.takeoffDurationS=source.takeoffDurationS; target.takeoffAltitudeFt=source.takeoffAltitudeFt;
+        target.takeoffDistanceNm=source.takeoffDistanceNm; target.landingSpeed=source.landingSpeed;
+        target.radarCrossSection=source.radarCrossSection; target.maximumSpeed=source.maximumSpeed;
+        target.maximumAltitudeLayer=source.maximumAltitudeLayer; target.maximumTurn=source.maximumTurn;
+        target.machCapable=source.machCapable; target.jetAircraft=source.jetAircraft; target.standardTurn=source.standardTurn;
+        target.turnResponse1=source.turnResponse1; target.turnResponse2=source.turnResponse2; target.turnResponse3=source.turnResponse3;
+        target.accelerationResponse1=source.accelerationResponse1; target.accelerationResponse2=source.accelerationResponse2;
+        target.accelerationResponse3=source.accelerationResponse3; target.decelerationResponse1=source.decelerationResponse1;
+        target.decelerationResponse2=source.decelerationResponse2; target.decelerationResponse3=source.decelerationResponse3;
+        target.climbResponse1=source.climbResponse1; target.climbResponse2=source.climbResponse2; target.climbResponse3=source.climbResponse3;
+        target.descentResponse1=source.descentResponse1; target.descentResponse2=source.descentResponse2;
+        target.descentResponse3=source.descentResponse3; target.accelerationKtsMin=source.accelerationKtsMin;
+        target.decelerationKtsMin=source.decelerationKtsMin; target.stallSpeed=source.stallSpeed;
+        target.climbSpeed=source.climbSpeed; target.descentSpeed=source.descentSpeed;
+    }
+
+    private static String performanceExcelKey(String code, String icao, String reacat, String altitude) {
+        return nz(code) + "/" + nz(icao) + "/" + nz(reacat) + "/" + nz(altitude);
     }
 
     private List<NavPointRow> allNavigationPoints() {

@@ -9,7 +9,7 @@ public final class Guards {
     /** BLUESKY 来源记录只读：禁止直接编辑/删除，需复制为人工副本后操作。 */
     public static void requireEditableSource(String sourceType, String action) {
         if ("BLUESKY".equals(sourceType)) {
-            throw ApiException.badRequest("BLUESKY 只读来源记录不允许" + action + "，请先复制为人工副本");
+            throw ApiException.badRequest(sourceType + " 只读来源记录不允许" + action + "，请先复制为人工副本");
         }
     }
 

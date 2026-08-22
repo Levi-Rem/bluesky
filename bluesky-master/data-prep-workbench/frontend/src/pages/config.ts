@@ -1,5 +1,7 @@
 /** 每个实体页的列与行映射配置。 */
 
+import { weatherAreaToDms } from '../utils/coordinates';
+
 export interface EntityRecord {
   id: string;
   code: string;
@@ -16,22 +18,33 @@ export interface PageConfig {
   columns: string[];
   /** 行 → 展示单元格（不含操作列） */
   cells: (row: Record<string, unknown>) => string[];
+  /** 允许完整换行显示的单元格索引。 */
+  wrapColumns?: number[];
+  /** 单行省略显示的长文本单元格索引。 */
+  truncateColumns?: number[];
 }
 
 const dash = (value: unknown): string =>
   value === null || value === undefined || value === '' ? '—' : String(value);
 
+const weatherTypeLabels: Record<string, string> = {
+  WIND_SHEAR: '风切变',
+  MICROBURST: '下击暴流',
+  JET_STREAM: '急流',
+  TURBULENCE: '湍流',
+  ADVECTION_FOG: '平流雾',
+  RADIATION_FOG: '辐射雾',
+  THUNDERSTORM: '雷雨'
+};
+
 export const pages: Record<string, PageConfig> = {
   navigation: {
     entity: 'nav-point',
-    columns: ['标识', '名称', '类型', '纬度', '经度', '频率', '操作'],
+    columns: ['名称', '类型', '坐标', '操作'],
     cells: row => [
-      dash(row.code),
       dash(row.name),
-      dash(row.pointType),
-      dash(row.latitude),
-      dash(row.longitude),
-      row.frequencyMhz ? `${row.frequencyMhz} MHz` : '—'
+      dash(row.sourcePointType ?? row.pointType),
+      dash(row.coordinateText ?? `${row.latitude}, ${row.longitude}`)
     ]
   },
   airport: {
@@ -60,45 +73,66 @@ export const pages: Record<string, PageConfig> = {
   },
   airway: {
     entity: 'airway',
-    columns: ['航路', '起点', '终点', '方向', '最低高度', '最高高度', '操作'],
+    columns: ['名称', '航路', '类型', '操作'],
+    wrapColumns: [1],
     cells: row => {
       const segments = Array.isArray(row.segments) ? row.segments : [];
       const first = segments[0] as Record<string, unknown> | undefined;
-      const last = segments[segments.length - 1] as Record<string, unknown> | undefined;
+      const route = first
+        ? [first.startPointCode, ...segments.map(item => (item as Record<string, unknown>).endPointCode)]
+            .map(dash).join(' ')
+        : '—';
+      const routeTypes: Record<string, string> = {
+        CODED_ROUTE: '编码航路',
+        SID: 'SID',
+        STAR: 'STAR'
+      };
       return [
         dash(row.code),
-        dash(first?.startPointCode),
-        dash(last?.endPointCode),
-        row.airwayDirection === 'TWO_WAY' ? '双向' : '单向',
-        dash(row.lowerValue),
-        dash(row.upperValue)
+        route,
+        routeTypes[String(row.routeType)] ?? '编码航路'
+      ];
+    }
+  },
+  physicalSector: {
+    entity: 'physical-sector',
+    columns: ['名称', '类型', '组成', '上限', '下限', '操作'],
+    truncateColumns: [2],
+    cells: row => {
+      const points = Array.isArray(row.points) ? row.points as Record<string, unknown>[] : [];
+      const useNavPoints = row.compositionMode === 'NAV_POINT';
+      return [
+        dash(row.name),
+        row.sectorType === 'FIR' ? 'FIR' : '扇区',
+        points.map(point => dash(useNavPoints ? point.pointName : point.coordinateText)).join(' '),
+        dash(row.upperLimit),
+        dash(row.lowerLimit)
       ];
     }
   },
   weather: {
     entity: 'weather',
-    columns: ['标识', '数据类型', '关联区域', '有效时间', '状态', '操作'],
+    columns: ['名称', '类型', '区域', '下限', '上限', '操作'],
+    truncateColumns: [2],
     cells: row => [
-      dash(row.code),
-      dash(row.dataType),
-      dash(row.relatedArea),
-      dash(row.effectiveFrom),
-      dash(row.status)
+      dash(row.name),
+      weatherTypeLabels[String(row.weatherType)] ?? dash(row.weatherType),
+      dash(weatherAreaToDms(row.area)),
+      dash(row.lowerLimit),
+      dash(row.upperLimit)
     ]
   },
   performance: {
     entity: 'performance',
-    columns: ['机型', '制造商', '性能来源', '最大高度', '最大马赫数', '操作'],
+    columns: ['机型', 'ICAO尾流', 'RECAT尾流', '高度层', '巡航速度', '爬升率', '下降率', '操作'],
     cells: row => [
       dash(row.code),
-      dash(row.manufacturer),
-      row.performanceSource === 'OPENAP'
-        ? 'OpenAP'
-        : row.performanceSource === 'BADA'
-          ? 'BADA'
-          : '人工维护',
-      row.maximumAltitudeFt ? `FL${Math.round(Number(row.maximumAltitudeFt) / 100)}` : '—',
-      dash(row.maximumMach)
+      dash(row.icaoWakeCategory),
+      dash(row.reacatWakeCategory),
+      dash(row.altitudeLayer),
+      dash(row.cruiseSpeed),
+      dash(row.climbRateFtMin),
+      dash(row.descentRateFtMin)
     ]
   },
   radar: {
@@ -120,10 +154,11 @@ export const pages: Record<string, PageConfig> = {
 };
 
 export const pageTitles: Record<string, string> = {
-  navigation: '导航数据',
+  navigation: '空域信息',
   airport: '机场',
   airspace: '空域数据',
-  airway: '航路信息',
+  airway: '航路',
+  physicalSector: '物理扇区',
   weather: '气象数据',
   performance: '机型性能',
   radar: '雷达与通道'
@@ -136,25 +171,24 @@ export interface FieldConfig {
   label: string;
   type: 'text' | 'number' | 'select' | 'textarea';
   required?: boolean;
-  options?: string[];
+  options?: Array<string | { value: string; label: string }>;
   hint?: string;
+  section?: string;
   /** 打包子表格式：runways/segments/points/boundSites */
-  pack?: 'runways' | 'segments' | 'points' | 'boundSites';
+  pack?: 'runways' | 'segments' | 'routePath' | 'points' | 'boundSites' | 'physicalSectorPoints' | 'weatherArea';
 }
 
 export interface DrawerConfig {
   entity: string;
   title: string;
   fields: FieldConfig[];
+  wide?: boolean;
 }
 
 /** 行 → 实际后端实体（聚合页按 category/kind 路由）。 */
 export function entityOfRow(page: string, row: Record<string, unknown>): string | null {
   if (page === 'weather') {
-    if (row.category === 'WIND_FIELD') {
-      return 'wind-field';
-    }
-    return null; // 机场气象/重要天气区域为二期只读
+    return 'weather';
   }
   if (page === 'radar') {
     if (row.kind === 'SITE') {
@@ -171,7 +205,7 @@ export function entityOfRow(page: string, row: Record<string, unknown>): string 
 /** 新建按钮可用的实体（聚合页新建风场/雷达站）。 */
 export function createEntityOf(page: string): string | null {
   if (page === 'weather') {
-    return 'wind-field';
+    return 'weather';
   }
   if (page === 'radar') {
     return 'radar-site';
@@ -179,25 +213,24 @@ export function createEntityOf(page: string): string | null {
   return pages[page]?.entity ?? null;
 }
 
-const navTypes = ['FIX', 'VOR', 'NDB', 'DME', 'VOR_DME', 'ILS', 'OTHER'];
+const navTypes = ['REPORT', 'AIRPORT_I', 'VORDME', 'NDB', 'VOR', 'DUMMY'];
 const airspaceTypes = ['FIR', 'TMA', 'CTR', 'CTA', 'RESTRICTED', 'DANGER', 'PROHIBITED'];
-const windTypes = ['GLOBAL_CONSTANT', 'TWO_DIMENSIONAL', 'THREE_DIMENSIONAL'];
-const performanceSources = ['OPENAP', 'BADA', 'LEGACY', 'MANUAL'];
 const channelCategories = ['CAT021', 'CAT048', 'CAT062'];
 
 export const drawerConfigs: Record<string, DrawerConfig> = {
   'nav-point': {
     entity: 'nav-point',
-    title: '导航点',
+    title: '空域信息',
     fields: [
-      { key: 'code', label: '编码', type: 'text', required: true },
       { key: 'name', label: '名称', type: 'text', required: true },
-      { key: 'pointType', label: '类型', type: 'select', required: true, options: navTypes },
-      { key: 'longitude', label: '经度', type: 'number', required: true },
-      { key: 'latitude', label: '纬度', type: 'number', required: true },
-      { key: 'elevationM', label: '海拔(米)', type: 'number' },
-      { key: 'frequencyMhz', label: '频率(MHz)', type: 'number' },
-      { key: 'description', label: '描述', type: 'textarea' }
+      { key: 'sourcePointType', label: '类型', type: 'select', required: true, options: navTypes },
+      {
+        key: 'coordinateText',
+        label: '坐标',
+        type: 'text',
+        required: true,
+        hint: 'DMS 格式，例如 400430N1163524E；也可输入纬度,经度'
+      }
     ]
   },
   airport: {
@@ -246,26 +279,95 @@ export const drawerConfigs: Record<string, DrawerConfig> = {
     entity: 'airway',
     title: '航路',
     fields: [
-      { key: 'code', label: '编码', type: 'text', required: true },
-      { key: 'name', label: '名称', type: 'text', required: true },
-      {
-        key: 'airwayDirection',
-        label: '方向',
-        type: 'select',
-        required: true,
-        options: ['ONE_WAY', 'TWO_WAY']
-      },
-      { key: 'lowerValue', label: '下限值', type: 'number' },
-      { key: 'lowerReference', label: '下限基准', type: 'text' },
-      { key: 'upperValue', label: '上限值', type: 'number' },
-      { key: 'upperReference', label: '上限基准', type: 'text' },
+      { key: 'code', label: '名称', type: 'text', required: true },
       {
         key: 'segments',
-        label: '航段',
+        label: '航路',
         type: 'textarea',
-        pack: 'segments',
-        hint: '每段：起点编码-终点编码，多段以 ; 分隔'
+        required: true,
+        pack: 'routePath',
+        hint: '按顺序输入航路点，使用空格分隔，例如：BUNTA P97 LENKO IKELA'
+      },
+      {
+        key: 'routeType',
+        label: '类型',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'CODED_ROUTE', label: '编码航路' },
+          { value: 'STAR', label: 'STAR' },
+          { value: 'SID', label: 'SID' }
+        ]
       }
+    ]
+  },
+  'physical-sector': {
+    entity: 'physical-sector',
+    title: '物理扇区',
+    fields: [
+      { key: 'name', label: '名称', type: 'text', required: true },
+      {
+        key: 'sectorType',
+        label: '类型',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'SECTOR', label: '扇区' },
+          { value: 'FIR', label: 'FIR' }
+        ]
+      },
+      {
+        key: 'compositionMode',
+        label: '组成方式',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'NAV_POINT', label: '空域信息点' },
+          { value: 'COORDINATE', label: '经纬度' }
+        ]
+      },
+      {
+        key: 'points',
+        label: '组成',
+        type: 'textarea',
+        required: true,
+        pack: 'physicalSectorPoints',
+        hint: '空域信息点使用名称、经纬度使用 DMS 坐标，均以空格分隔；首尾由系统自动闭合'
+      },
+      { key: 'upperLimit', label: '上限', type: 'text', required: true, hint: '例如 S0920' },
+      { key: 'lowerLimit', label: '下限', type: 'text', required: true, hint: '例如 S0000 或 S0450' }
+    ]
+  },
+  weather: {
+    entity: 'weather',
+    title: '气象数据',
+    fields: [
+      { key: 'name', label: '名称', type: 'text', required: true },
+      {
+        key: 'weatherType',
+        label: '类型',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'WIND_SHEAR', label: '风切变' },
+          { value: 'MICROBURST', label: '下击暴流' },
+          { value: 'JET_STREAM', label: '急流' },
+          { value: 'TURBULENCE', label: '湍流' },
+          { value: 'ADVECTION_FOG', label: '平流雾' },
+          { value: 'RADIATION_FOG', label: '辐射雾' },
+          { value: 'THUNDERSTORM', label: '雷雨' }
+        ]
+      },
+      {
+        key: 'area',
+        label: '区域',
+        type: 'textarea',
+        required: true,
+        pack: 'weatherArea',
+        hint: 'DMS 经纬度，各点以空格分隔，例如：042018N1135931E 042500N1140000E 041800N1141000E'
+      },
+      { key: 'lowerLimit', label: '下限', type: 'text', required: true, hint: 'S 高度编码，例如 S0100' },
+      { key: 'upperLimit', label: '上限', type: 'text', required: true, hint: 'S 高度编码，例如 S3000' }
     ]
   },
   'wind-field': {
@@ -274,7 +376,13 @@ export const drawerConfigs: Record<string, DrawerConfig> = {
     fields: [
       { key: 'code', label: '编码', type: 'text', required: true },
       { key: 'name', label: '名称', type: 'text', required: true },
-      { key: 'windFieldType', label: '类型', type: 'select', required: true, options: windTypes },
+      {
+        key: 'windFieldType',
+        label: '类型',
+        type: 'select',
+        required: true,
+        options: ['GLOBAL_CONSTANT', 'TWO_DIMENSIONAL', 'THREE_DIMENSIONAL']
+      },
       { key: 'windDirectionDeg', label: '风向(度)', type: 'number' },
       { key: 'windSpeedMs', label: '风速(米/秒)', type: 'number' },
       { key: 'boundary', label: '区域边界 GeoJSON', type: 'textarea' },
@@ -292,29 +400,43 @@ export const drawerConfigs: Record<string, DrawerConfig> = {
   performance: {
     entity: 'performance',
     title: '机型性能',
+    wide: true,
     fields: [
-      { key: 'code', label: '机型编码', type: 'text', required: true },
-      { key: 'name', label: '名称', type: 'text', required: true },
-      { key: 'manufacturer', label: '制造商', type: 'text' },
-      { key: 'modelName', label: '型号', type: 'text' },
-      {
-        key: 'performanceSource',
-        label: '性能来源',
-        type: 'select',
-        required: true,
-        options: performanceSources
-      },
-      { key: 'engineType', label: '发动机类型', type: 'text' },
-      {
-        key: 'wakeTurbulenceCategory',
-        label: '尾流等级',
-        type: 'select',
-        options: ['L', 'M', 'H', 'J']
-      },
-      { key: 'maximumTakeoffWeightKg', label: '最大起飞重量(千克)', type: 'number' },
-      { key: 'maximumAltitudeFt', label: '最大高度(英尺)', type: 'number' },
-      { key: 'maximumMach', label: '最大马赫', type: 'number' },
-      { key: 'defaultBankAngleDeg', label: '默认坡度(度)', type: 'number' }
+      { key: 'code', label: '机型编码', type: 'text', required: true, section: '机型基本信息' },
+      { key: 'name', label: '名称', type: 'text', required: true, section: '机型基本信息' },
+      { key: 'manufacturer', label: '制造商', type: 'text', section: '机型基本信息' },
+      { key: 'modelName', label: '型号', type: 'text', section: '机型基本信息' },
+      { key: 'engineType', label: '发动机类型', type: 'text', section: '机型基本信息' },
+      { key: 'icaoWakeCategory', label: 'ICAO尾流类别', type: 'select', options: ['L', 'M', 'H', 'J'], section: '机型基本信息' },
+      { key: 'reacatWakeCategory', label: 'RECAT尾流类别', type: 'select', options: ['B', 'C', 'H', 'J', 'L', 'M'], section: '机型基本信息' },
+      { key: 'maximumTakeoffWeightKg', label: '最大起飞重量(千克)', type: 'number', section: '机型基本信息' },
+      { key: 'performanceCategory', label: '性能类别', type: 'select', options: ['H', 'L'], section: '机型基本信息' },
+
+      { key: 'altitudeLayer', label: '高度层', type: 'text', required: true, section: '当前高度层性能', hint: '例如 F20、F100、F450' },
+      { key: 'cruiseSpeed', label: '巡航速度', type: 'text', section: '当前高度层性能' },
+      { key: 'stallSpeed', label: '失速速度', type: 'text', section: '当前高度层性能' },
+      { key: 'climbSpeed', label: '爬升速度', type: 'text', section: '当前高度层性能' },
+      { key: 'descentSpeed', label: '下降速度', type: 'text', section: '当前高度层性能' },
+      { key: 'climbRateFtMin', label: '爬升率(ft/min)', type: 'number', section: '当前高度层性能' },
+      { key: 'descentRateFtMin', label: '下降率(ft/min)', type: 'number', section: '当前高度层性能' },
+      { key: 'accelerationKtsMin', label: '加速度(kts/min)', type: 'number', section: '当前高度层性能' },
+      { key: 'decelerationKtsMin', label: '减速度(kts/min)', type: 'number', section: '当前高度层性能' },
+
+      { key: 'holdingSpeedLow', label: '低高度等待速度', type: 'text', section: '通用性能' },
+      { key: 'holdingSpeedMiddle', label: '中高度等待速度', type: 'text', section: '通用性能' },
+      { key: 'holdingSpeedHigh', label: '高高度等待速度', type: 'text', section: '通用性能' },
+      { key: 'takeoffSpeed', label: '起飞速度', type: 'text', section: '通用性能' },
+      { key: 'takeoffDurationS', label: '起飞时间(秒)', type: 'number', section: '通用性能' },
+      { key: 'takeoffAltitudeFt', label: '起飞高度(英尺)', type: 'number', section: '通用性能' },
+      { key: 'takeoffDistanceNm', label: '起飞距离(海里)', type: 'number', section: '通用性能' },
+      { key: 'landingSpeed', label: '着陆速度', type: 'text', section: '通用性能' },
+      { key: 'radarCrossSection', label: '雷达反射截面积', type: 'number', section: '通用性能' },
+      { key: 'maximumSpeed', label: '最大速度', type: 'text', section: '通用性能' },
+      { key: 'maximumAltitudeLayer', label: '最大高度', type: 'text', section: '通用性能' },
+      { key: 'maximumTurn', label: '最大转弯参数', type: 'number', section: '通用性能' },
+      { key: 'standardTurn', label: '标准转弯参数', type: 'number', section: '通用性能' },
+      { key: 'machCapable', label: '支持马赫数', type: 'select', options: [{ value: 'true', label: '是' }, { value: 'false', label: '否' }], section: '通用性能' },
+      { key: 'jetAircraft', label: '喷气机', type: 'select', options: [{ value: 'true', label: '是' }, { value: 'false', label: '否' }], section: '通用性能' }
     ]
   },
   'radar-site': {

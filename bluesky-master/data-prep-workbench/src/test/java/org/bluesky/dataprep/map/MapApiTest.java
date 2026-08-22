@@ -1,11 +1,16 @@
 package org.bluesky.dataprep.map;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.bluesky.dataprep.DataPrepApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -149,6 +154,41 @@ class MapApiTest {
     }
 
     @Test
+    @Transactional
+    void allReferenceLayersSupportGeometryAndPropertyEditing() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(mockMvc.perform(get("/api/map/layers"))
+                .andReturn().getResponse().getContentAsString());
+        ObjectNode airway = feature(root, "AIRWAY", "airway");
+        ObjectNode wind = feature(root, "WEATHER", "wind-field");
+        ObjectNode weather = feature(root, "WEATHER", "sig-weather");
+        ObjectNode radar = feature(root, "RADAR", "radar-site");
+
+        ArrayNode operations = mapper.createArrayNode();
+        addEditOperations(mapper, operations, airway, "航路地图修改");
+        addEditOperations(mapper, operations, wind, "风场地图修改");
+        addEditOperations(mapper, operations, weather, "天气地图修改");
+        addEditOperations(mapper, operations, radar, "雷达地图修改");
+        ObjectNode request = mapper.createObjectNode();
+        request.set("operations", operations);
+
+        mockMvc.perform(put("/api/map/features")
+                        .contentType(APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(8));
+
+        mockMvc.perform(get("/api/airway/{id}", airway.get("entityId").asText()))
+                .andExpect(jsonPath("$.name").value("航路地图修改"));
+        mockMvc.perform(get("/api/wind-field/{id}", wind.get("entityId").asText()))
+                .andExpect(jsonPath("$.name").value("风场地图修改"));
+        mockMvc.perform(get("/api/weather/{id}", weather.get("entityId").asText()))
+                .andExpect(jsonPath("$.name").value("天气地图修改"));
+        mockMvc.perform(get("/api/radar-site/{id}", radar.get("entityId").asText()))
+                .andExpect(jsonPath("$.name").value("雷达地图修改"));
+    }
+
+    @Test
     void mapCreatesEntitiesAndSequentiallyUpdatesSameRevision() throws Exception {
         mockMvc.perform(put("/api/map/features")
                         .contentType(APPLICATION_JSON)
@@ -156,11 +196,14 @@ class MapApiTest {
                                 + "{\"operationType\":\"CREATE\",\"entityType\":\"nav-point\","
                                 + "\"entityId\":\"\",\"revision\":0,"
                                 + "\"geometry\":\"{\\\"type\\\":\\\"Point\\\",\\\"coordinates\\\":[122,32]}\","
-                                + "\"properties\":{\"code\":\"MAP-N1\",\"name\":\"地图新增点\"}},"
+                                + "\"properties\":{\"code\":\"MAP-N1\",\"name\":\"地图新增点\","
+                                + "\"pointType\":\"VOR\"}},"
                                 + "{\"operationType\":\"CREATE\",\"entityType\":\"airspace\","
                                 + "\"entityId\":\"\",\"revision\":0,"
                                 + "\"geometry\":\"{\\\"type\\\":\\\"Polygon\\\",\\\"coordinates\\\":[[[120,30],[121,30],[121,31],[120,30]]]}\","
-                                + "\"properties\":{\"code\":\"MAP-A1\",\"name\":\"地图新增区\"}}]}"))
+                                + "\"properties\":{\"code\":\"MAP-A1\",\"name\":\"地图新增区\","
+                                + "\"airspaceType\":\"FIR\",\"lowerLimit\":\"S0100\","
+                                + "\"upperLimit\":\"S3000\"}}]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.saved").value(2));
 
@@ -189,7 +232,58 @@ class MapApiTest {
         mockMvc.perform(get("/api/nav-point/{id}", navId))
                 .andExpect(jsonPath("$.longitude").value(123.0))
                 .andExpect(jsonPath("$.latitude").value(33.0))
+                .andExpect(jsonPath("$.pointType").value("VOR"))
                 .andExpect(jsonPath("$.name").value("连续修改成功"))
                 .andExpect(jsonPath("$.revision").value(2));
+
+        MvcResult airspaceList = mockMvc.perform(get("/api/airspace").param("size", "200")).andReturn();
+        String airspaceId = null;
+        for (Object item : com.jayway.jsonpath.JsonPath.<java.util.List<Object>>read(
+                airspaceList.getResponse().getContentAsString(), "$.items")) {
+            if ("MAP-A1".equals(((java.util.Map<String, Object>) item).get("code"))) {
+                airspaceId = (String) ((java.util.Map<String, Object>) item).get("id");
+            }
+        }
+        org.assertj.core.api.Assertions.assertThat(airspaceId).isNotNull();
+        mockMvc.perform(get("/api/airspace/{id}", airspaceId))
+                .andExpect(jsonPath("$.airspaceType").value("FIR"))
+                .andExpect(jsonPath("$.lowerValue").value(100.0))
+                .andExpect(jsonPath("$.lowerReference").value("S"))
+                .andExpect(jsonPath("$.upperValue").value(3000.0))
+                .andExpect(jsonPath("$.upperReference").value("S"));
+    }
+
+    private static ObjectNode feature(JsonNode root, String category, String entityType) {
+        for (JsonNode layer : root.path("layers")) {
+            if (!category.equals(layer.path("category").asText())) continue;
+            for (JsonNode feature : layer.path("features")) {
+                if (entityType.equals(feature.path("entityType").asText())) return (ObjectNode) feature;
+            }
+        }
+        throw new AssertionError("地图测试要素不存在：" + category + "/" + entityType);
+    }
+
+    private static void addEditOperations(ObjectMapper mapper, ArrayNode operations,
+                                          ObjectNode feature, String newName) throws Exception {
+        ObjectNode geometry = mapper.createObjectNode();
+        geometry.put("operationType", "UPDATE_GEOMETRY");
+        geometry.put("entityType", feature.path("entityType").asText());
+        geometry.put("entityId", feature.path("entityId").asText());
+        geometry.put("featureId", feature.path("featureId").asText());
+        geometry.put("revision", feature.path("revision").asInt());
+        geometry.put("geometry", mapper.writeValueAsString(feature.get("geometry")));
+        operations.add(geometry);
+
+        ObjectNode properties = mapper.createObjectNode();
+        properties.put("operationType", "UPDATE_PROPERTIES");
+        properties.put("entityType", feature.path("entityType").asText());
+        properties.put("entityId", feature.path("entityId").asText());
+        properties.put("featureId", feature.path("featureId").asText());
+        properties.put("revision", feature.path("revision").asInt());
+        ObjectNode patch = mapper.createObjectNode();
+        patch.put("code", feature.path("code").asText());
+        patch.put("name", newName);
+        properties.set("properties", patch);
+        operations.add(properties);
     }
 }

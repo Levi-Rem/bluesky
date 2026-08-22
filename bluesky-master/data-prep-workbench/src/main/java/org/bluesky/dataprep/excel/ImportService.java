@@ -51,7 +51,13 @@ public class ImportService {
             int rowNumber = i + 2; // Excel 第1行是表头
             Map<String, String> fields = rows.get(i);
             try {
-                Object existing = existingByCode.get(fields.get("code") == null ? "" : fields.get("code"));
+                String lookupKey = fields.get("code") == null ? "" : fields.get("code");
+                if ("performance".equals(entity)) {
+                    lookupKey += "/" + value(fields, "icaoWakeCategory")
+                            + "/" + value(fields, "reacatWakeCategory")
+                            + "/" + value(fields, "altitudeLayer");
+                }
+                Object existing = existingByCode.get(lookupKey);
                 Object saved = schema.getImportApplier().apply(fields, existing);
                 if (saved != null) {
                     existingByCode.put(schema.codeOf(saved), saved);
@@ -84,6 +90,11 @@ public class ImportService {
         result.put("failedRows", failed);
         result.put("batchStatus", status);
         return result;
+    }
+
+    private static String value(Map<String, String> fields, String key) {
+        String value = fields.get(key);
+        return value == null ? "" : value;
     }
 
     public List<Map<String, Object>> recentBatches() {

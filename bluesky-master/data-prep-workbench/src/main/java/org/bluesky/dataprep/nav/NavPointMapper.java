@@ -13,7 +13,8 @@ import java.util.List;
 public interface NavPointMapper {
 
     String COLS = "id, code, name, point_type, longitude, latitude, elevation_m, frequency_mhz, "
-            + "magnetic_variation_deg, description, status, source_type, source_reference, revision, "
+            + "magnetic_variation_deg, description, source_point_type, coordinate_text, relevant_flag, "
+            + "applicable_airports, pilot_flag, dti_flag, tfm_flag, status, source_type, source_reference, revision, "
             + "deleted, created_at, created_by, updated_at, updated_by ";
 
     @Select("SELECT " + COLS + "FROM navigation_point WHERE deleted = FALSE ORDER BY code LIMIT #{size} OFFSET #{offset}")
@@ -35,17 +36,22 @@ public interface NavPointMapper {
     int countActiveAirwayReferences(String id);
 
     @Insert("INSERT INTO navigation_point (id, code, name, point_type, longitude, latitude, elevation_m, "
-            + "frequency_mhz, magnetic_variation_deg, description, status, source_type, source_reference, "
+            + "frequency_mhz, magnetic_variation_deg, description, source_point_type, coordinate_text, relevant_flag, "
+            + "applicable_airports, pilot_flag, dti_flag, tfm_flag, status, source_type, source_reference, "
             + "revision, deleted, created_by, updated_by) VALUES "
             + "(#{id}, #{code}, #{name}, #{pointType}, #{longitude}, #{latitude}, #{elevationM}, "
-            + "#{frequencyMhz}, #{magneticVariationDeg}, #{description}, #{status}, #{sourceType}, "
+            + "#{frequencyMhz}, #{magneticVariationDeg}, #{description}, #{sourcePointType}, #{coordinateText}, "
+            + "#{relevantFlag}, #{applicableAirports}, #{pilotFlag}, #{dtiFlag}, #{tfmFlag}, #{status}, #{sourceType}, "
             + "#{sourceReference}, 0, FALSE, #{createdBy}, #{updatedBy})")
     int insert(NavPointRow row);
 
     @Update("UPDATE navigation_point SET code = #{code}, name = #{name}, point_type = #{pointType}, "
             + "longitude = #{longitude}, latitude = #{latitude}, elevation_m = #{elevationM}, "
             + "frequency_mhz = #{frequencyMhz}, magnetic_variation_deg = #{magneticVariationDeg}, "
-            + "description = #{description}, status = #{status}, source_reference = #{sourceReference}, "
+            + "description = #{description}, source_point_type = #{sourcePointType}, coordinate_text = #{coordinateText}, "
+            + "relevant_flag = #{relevantFlag}, applicable_airports = #{applicableAirports}, "
+            + "pilot_flag = #{pilotFlag}, dti_flag = #{dtiFlag}, tfm_flag = #{tfmFlag}, "
+            + "status = #{status}, source_reference = #{sourceReference}, "
             + "updated_by = #{updatedBy}, revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int update(NavPointRow row);

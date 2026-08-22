@@ -12,7 +12,10 @@ import java.util.List;
 public interface AirwayMapper {
 
     String COLS = "id, code, name, airway_direction, lower_value, lower_reference, upper_value, "
-            + "upper_reference, status, source_type, source_reference, revision, deleted, "
+            + "upper_reference, cruise_level_rule, rnav_capability, rnav_capability_post_2012, "
+            + "rnp_capability_post_2012, rvsm_level, route_type, procedure_airport, procedure_profile, "
+            + "procedure_runway, procedure_direction, procedure_operation, eligible_route, "
+            + "status, source_type, source_reference, revision, deleted, "
             + "created_at, created_by, updated_at, updated_by ";
 
     @Select("SELECT " + COLS + "FROM airway WHERE deleted = FALSE ORDER BY code LIMIT #{size} OFFSET #{offset}")
@@ -28,15 +31,28 @@ public interface AirwayMapper {
     int countByCode(@Param("code") String code, @Param("excludeId") String excludeId);
 
     @Insert("INSERT INTO airway (id, code, name, airway_direction, lower_value, lower_reference, "
-            + "upper_value, upper_reference, status, source_type, source_reference, revision, deleted, "
+            + "upper_value, upper_reference, cruise_level_rule, rnav_capability, rnav_capability_post_2012, "
+            + "rnp_capability_post_2012, rvsm_level, route_type, procedure_airport, procedure_profile, "
+            + "procedure_runway, procedure_direction, procedure_operation, eligible_route, "
+            + "status, source_type, source_reference, revision, deleted, "
             + "created_by, updated_by) VALUES (#{id}, #{code}, #{name}, #{airwayDirection}, #{lowerValue}, "
-            + "#{lowerReference}, #{upperValue}, #{upperReference}, #{status}, #{sourceType}, "
+            + "#{lowerReference}, #{upperValue}, #{upperReference}, #{cruiseLevelRule}, #{rnavCapability}, "
+            + "#{rnavCapabilityPost2012}, #{rnpCapabilityPost2012}, #{rvsmLevel}, #{routeType}, "
+            + "#{procedureAirport}, #{procedureProfile}, #{procedureRunway}, #{procedureDirection}, "
+            + "#{procedureOperation}, #{eligibleRoute}, #{status}, #{sourceType}, "
             + "#{sourceReference}, 0, FALSE, #{createdBy}, #{updatedBy})")
     int insert(AirwayRow row);
 
     @Update("UPDATE airway SET code = #{code}, name = #{name}, airway_direction = #{airwayDirection}, "
             + "lower_value = #{lowerValue}, lower_reference = #{lowerReference}, upper_value = #{upperValue}, "
-            + "upper_reference = #{upperReference}, status = #{status}, source_reference = #{sourceReference}, "
+            + "upper_reference = #{upperReference}, cruise_level_rule = #{cruiseLevelRule}, "
+            + "rnav_capability = #{rnavCapability}, rnav_capability_post_2012 = #{rnavCapabilityPost2012}, "
+            + "rnp_capability_post_2012 = #{rnpCapabilityPost2012}, rvsm_level = #{rvsmLevel}, "
+            + "route_type = #{routeType}, procedure_airport = #{procedureAirport}, "
+            + "procedure_profile = #{procedureProfile}, procedure_runway = #{procedureRunway}, "
+            + "procedure_direction = #{procedureDirection}, procedure_operation = #{procedureOperation}, "
+            + "eligible_route = #{eligibleRoute}, "
+            + "status = #{status}, source_reference = #{sourceReference}, "
             + "updated_by = #{updatedBy}, revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int update(AirwayRow row);

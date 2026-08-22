@@ -195,6 +195,22 @@ tbody tr.selected {
   border: 0;
 }
 
+td.wrap-cell {
+  min-width: 360px;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+td.truncate-cell {
+  max-width: 56vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-action.danger {
+  color: var(--danger);
+}
+
 .pager {
   display: flex;
   justify-content: space-between;

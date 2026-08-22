@@ -56,6 +56,7 @@
         <div class="menu" v-show="openMenu === 'editMenu'">
           <button @click="editAction('new')">新建</button>
           <button @click="editAction('import')">导入 Excel</button>
+          <button @click="editAction('asf')">导入运行系统 ASF</button>
           <button @click="editAction('export')">导出 Excel</button>
           <button @click="editAction('map')">地图编辑</button>
         </div>
@@ -66,8 +67,8 @@
       <DataTable
         ref="tableRef"
         :config="pages[currentPage]"
-        @view="onView"
         @edit="onEdit"
+        @delete="onDelete"
       />
     </main>
 
@@ -93,6 +94,13 @@
       @toast="toast"
     />
 
+    <AsfImportWizard
+      v-if="asfOpen"
+      @close="asfOpen = false"
+      @imported="onSaved"
+      @toast="toast"
+    />
+
     <div class="toast" :class="{ error: toastTone === 'error' }" v-show="toastText">
       {{ toastText }}
     </div>
@@ -105,6 +113,7 @@ import DataTable from './components/DataTable.vue';
 import MapEditor from './components/MapEditor.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import ImportWizard from './components/ImportWizard.vue';
+import AsfImportWizard from './components/AsfImportWizard.vue';
 import {
   createEntityOf,
   drawerConfigs,
@@ -113,17 +122,18 @@ import {
   pageTitles,
   type DrawerConfig
 } from './pages/config';
-import { exportUrl } from './api/client';
+import { ApiError, exportUrl, remove } from './api/client';
 import { useHealthStore } from './stores/health';
 
 const healthStore = useHealthStore();
-const airspacePages: string[] = ['navigation', 'airport', 'airspace', 'airway'];
+const airspacePages: string[] = ['navigation', 'airway', 'physicalSector'];
 
 const currentPage = ref<keyof typeof pages>('navigation');
 const openMenu = ref('');
 const tableRef = ref<InstanceType<typeof DataTable>>();
 const mapOpen = ref(false);
 const wizardOpen = ref(false);
+const asfOpen = ref(false);
 
 interface DrawerState {
   config: DrawerConfig;
@@ -179,6 +189,10 @@ function editAction(action: string) {
     wizardOpen.value = true;
     return;
   }
+  if (action === 'asf') {
+    asfOpen.value = true;
+    return;
+  }
   const entity = createEntityOf(currentPage.value);
   if (!entity || !drawerConfigs[entity]) {
     toast('当前页面不支持新建', 'error');
@@ -200,17 +214,32 @@ function openRowDrawer(row: Record<string, unknown>, mode: 'view' | 'edit') {
     revision: Number(row.revision ?? 0),
     warning:
       row.sourceType === 'BLUESKY'
-        ? 'BLUESKY 来源数据为只读，保存将被服务端拒绝'
+        ? `${row.sourceType} 来源数据为只读，保存将被服务端拒绝`
         : undefined
   };
 }
 
-function onView(row: Record<string, unknown>) {
-  openRowDrawer(row, 'view');
-}
-
 function onEdit(row: Record<string, unknown>) {
   openRowDrawer(row, 'edit');
+}
+
+async function onDelete(row: Record<string, unknown>) {
+  const entity = entityOfRow(currentPage.value, row);
+  if (!entity) {
+    toast('该类数据不支持删除', 'error');
+    return;
+  }
+  const label = String(row.name ?? row.code ?? '当前记录');
+  if (!window.confirm(`确认删除“${label}”吗？`)) {
+    return;
+  }
+  try {
+    await remove(entity, String(row.id ?? ''), Number(row.revision ?? 0));
+    toast(`已删除“${label}”`);
+    onSaved();
+  } catch (error) {
+    toast(error instanceof ApiError ? error.message : '删除失败', 'error');
+  }
 }
 
 function onSaved() {

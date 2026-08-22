@@ -24,14 +24,50 @@ class WeatherApiTest {
     private MockMvc mockMvc;
 
     @Test
-    void mixedWeatherListCoversThreeCategories() throws Exception {
+    void weatherListUsesRegionalWeatherStructure() throws Exception {
         mockMvc.perform(get("/api/weather"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
-                .andExpect(jsonPath("$.items[?(@.code=='WIND-E01')].dataType").value("三维风场"))
-                .andExpect(jsonPath("$.items[?(@.code=='MET-ZSPD')].dataType").value("机场气象"))
-                .andExpect(jsonPath("$.items[?(@.code=='CB-07')].dataType").value("重要天气区域"))
-                .andExpect(jsonPath("$.items[?(@.code=='MET-ZSPD')].relatedArea").value("ZSPD"));
+                .andExpect(jsonPath("$.items[?(@.code=='CB-07')].name").value("雷暴区 07"))
+                .andExpect(jsonPath("$.items[?(@.code=='CB-07')].weatherType").value("THUNDERSTORM"))
+                .andExpect(jsonPath("$.items[?(@.code=='CB-07')].lowerLimit").value("S0060"))
+                .andExpect(jsonPath("$.items[?(@.code=='CB-07')].upperLimit").value("S1100"));
+    }
+
+    @Test
+    void regionalWeatherCanBeCreatedWithCoordinateAreaAndLimits() throws Exception {
+        mockMvc.perform(post("/api/weather")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"name\":\"浦东风切变\",\"weatherType\":\"WIND_SHEAR\","
+                                + "\"area\":\"310600N1210600E 311800N1212400E 305400N1213600E\","
+                                + "\"lowerLimit\":\"S0000\",\"upperLimit\":\"S3000\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("浦东风切变"))
+                .andExpect(jsonPath("$.weatherType").value("WIND_SHEAR"))
+                .andExpect(jsonPath("$.area").value(org.hamcrest.Matchers.containsString("Polygon")))
+                .andExpect(jsonPath("$.lowerLimit").value("S0000"))
+                .andExpect(jsonPath("$.upperLimit").value("S3000"));
+    }
+
+    @Test
+    void unsupportedRegionalWeatherTypeIsRejected() throws Exception {
+        mockMvc.perform(post("/api/weather")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"name\":\"未知天气\",\"weatherType\":\"HAIL\","
+                                + "\"area\":\"310600N1210600E 311800N1212400E 305400N1213600E\","
+                                + "\"lowerLimit\":\"S0000\",\"upperLimit\":\"S3000\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("气象类型")));
+    }
+
+    @Test
+    void weatherLimitsOnlyAcceptSHeightCode() throws Exception {
+        mockMvc.perform(post("/api/weather")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"name\":\"高度格式错误\",\"weatherType\":\"TURBULENCE\","
+                                + "\"area\":\"310600N1210600E 311800N1212400E 305400N1213600E\","
+                                + "\"lowerLimit\":\"AGL600\",\"upperLimit\":\"S3000\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("S 高度编码")));
     }
 
     @Test

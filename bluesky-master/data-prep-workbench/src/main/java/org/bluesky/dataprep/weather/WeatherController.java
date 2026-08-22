@@ -1,82 +1,51 @@
 package org.bluesky.dataprep.weather;
 
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Select;
 import org.bluesky.dataprep.common.PageResult;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import javax.validation.Valid;
 
-/** 气象数据页：风场（一期可编辑）+ 机场气象/重要天气区域（二期，只读展示）。 */
+/** 区域性气象数据：名称、类型、区域和垂直范围。 */
 @RestController
 @RequestMapping("/api/weather")
 public class WeatherController {
+    private final WeatherAreaService service;
 
-    private final WindFieldService windFieldService;
-    private final WeatherRefMapper refMapper;
-
-    public WeatherController(WindFieldService windFieldService, WeatherRefMapper refMapper) {
-        this.windFieldService = windFieldService;
-        this.refMapper = refMapper;
+    public WeatherController(WeatherAreaService service) {
+        this.service = service;
     }
 
     @GetMapping
-    public PageResult<WeatherSummaryRow> list(@RequestParam(defaultValue = "0") int page,
-                                              @RequestParam(defaultValue = "20") int size) {
-        List<WeatherSummaryRow> all = new ArrayList<>();
-        for (WindFieldRow wind : windFieldService.list(0, 200).getItems()) {
-            String typeName = "GLOBAL_CONSTANT".equals(wind.getWindFieldType()) ? "恒定风"
-                    : "TWO_DIMENSIONAL".equals(wind.getWindFieldType()) ? "二维风场" : "三维风场";
-            all.add(new WeatherSummaryRow(wind.getId(), wind.getCode(), wind.getName(),
-                    "WIND_FIELD", typeName, wind.getBoundary() == null ? "—" : "区域边界",
-                    format(wind.getEffectiveFrom()), format(wind.getEffectiveTo()),
-                    "ENABLED".equals(wind.getStatus()) ? "有效" : "停用"));
-        }
-        for (Map<String, Object> row : refMapper.selectAirportWeather()) {
-            all.add(new WeatherSummaryRow(
-                    String.valueOf(row.get("id")), String.valueOf(row.get("code")),
-                    String.valueOf(row.get("name")), "AIRPORT_WEATHER", "机场气象",
-                    String.valueOf(row.get("icao")),
-                    format(row.get("validFrom")), format(row.get("validTo")),
-                    "ENABLED".equals(row.get("status")) ? "有效" : "停用"));
-        }
-        for (Map<String, Object> row : refMapper.selectSigWeather()) {
-            all.add(new WeatherSummaryRow(
-                    String.valueOf(row.get("id")), String.valueOf(row.get("code")),
-                    String.valueOf(row.get("name")), "SIG_WEATHER", "重要天气区域", "—",
-                    format(row.get("validFrom")), format(row.get("validTo")),
-                    "ENABLED".equals(row.get("status")) ? "有效" : "停用"));
-        }
-        all.sort(Comparator.comparing(WeatherSummaryRow::getCode));
-
-        int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
-        int from = Math.min(safePage * safeSize, all.size());
-        int to = Math.min(from + safeSize, all.size());
-        return new PageResult<>(new ArrayList<>(all.subList(from, to)), safePage, safeSize, all.size());
+    public PageResult<WeatherAreaRow> list(@RequestParam(defaultValue = "0") int page,
+                                           @RequestParam(defaultValue = "20") int size) {
+        return service.list(page, size);
     }
 
-    private String format(Object dateTime) {
-        return dateTime == null ? "全天" : String.valueOf(dateTime);
+    @GetMapping("/{id}")
+    public WeatherAreaRow get(@PathVariable String id) {
+        return service.get(id);
     }
 
-    @Mapper
-    public interface WeatherRefMapper {
+    @PostMapping
+    public WeatherAreaRow create(@Valid @RequestBody WeatherAreaRow row) {
+        return service.create(row);
+    }
 
-        @Select("SELECT w.id AS \"id\", w.code AS \"code\", w.name AS \"name\", a.icao AS \"icao\", w.valid_from AS \"validFrom\", w.valid_to AS \"validTo\", w.status AS \"status\" "
-                + "FROM airport_weather w JOIN airport a ON a.id = w.airport_id "
-                + "WHERE w.deleted = FALSE")
-        List<Map<String, Object>> selectAirportWeather();
+    @PutMapping("/{id}")
+    public WeatherAreaRow update(@PathVariable String id, @Valid @RequestBody WeatherAreaRow row) {
+        return service.update(id, row);
+    }
 
-        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", valid_from AS \"validFrom\", valid_to AS \"validTo\", status AS \"status\" "
-                + "FROM significant_weather_area WHERE deleted = FALSE")
-        List<Map<String, Object>> selectSigWeather();
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable String id, @RequestParam int revision) {
+        service.delete(id, revision);
     }
 }

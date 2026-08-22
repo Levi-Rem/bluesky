@@ -16,17 +16,22 @@
           <td
             v-for="(cell, cellIndex) in config.cells(row)"
             :key="cellIndex"
-            :class="{ 'record-code': cellIndex === 0 }"
+            :class="{
+              'record-code': cellIndex === 0,
+              'wrap-cell': config.wrapColumns?.includes(cellIndex),
+              'truncate-cell': config.truncateColumns?.includes(cellIndex)
+            }"
+            :title="config.truncateColumns?.includes(cellIndex) ? cell : undefined"
           >
             {{ cell }}
           </td>
           <td>
-            <button class="row-action" @click.stop="emit('view', row)">查看</button>
             <button class="row-action" @click.stop="emit('edit', row)">编辑</button>
+            <button class="row-action danger" @click.stop="emit('delete', row)">删除</button>
           </td>
         </tr>
         <tr v-if="rows.length === 0 && !loading">
-          <td :colspan="config.columns.length + 1">暂无数据</td>
+          <td :colspan="config.columns.length">暂无数据</td>
         </tr>
       </tbody>
     </table>
@@ -52,8 +57,8 @@ import type { PageConfig } from '../pages/config';
 
 const props = defineProps<{ config: PageConfig }>();
 const emit = defineEmits<{
-  view: [row: Record<string, unknown>];
   edit: [row: Record<string, unknown>];
+  delete: [row: Record<string, unknown>];
 }>();
 
 const rows = ref<Record<string, unknown>[]>([]);
@@ -63,6 +68,7 @@ const loading = ref(false);
 const error = ref('');
 const selectedIndex = ref(0);
 const size = 20;
+let requestSequence = 0;
 
 const hasNext = computed(() => (page.value + 1) * size < total.value);
 const rangeText = computed(() => {
@@ -75,19 +81,22 @@ const rangeText = computed(() => {
 });
 
 async function load() {
+  const requestId = ++requestSequence;
   loading.value = true;
   error.value = '';
   try {
     const result = await list<Record<string, unknown>>(props.config.entity, page.value, size);
+    if (requestId !== requestSequence) return;
     rows.value = result.items;
     total.value = result.total;
     selectedIndex.value = 0;
   } catch (ex) {
+    if (requestId !== requestSequence) return;
     rows.value = [];
     total.value = 0;
     error.value = ex instanceof ApiError ? ex.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (requestId === requestSequence) loading.value = false;
   }
 }
 
@@ -100,13 +109,14 @@ function refresh() {
 }
 
 watch(() => props.config.entity, () => {
+  const alreadyFirstPage = page.value === 0;
   page.value = 0;
-  load();
+  if (alreadyFirstPage) void load();
 });
 
-watch(page, () => load());
+watch(page, () => void load());
 
-onMounted(load);
+onMounted(() => void load());
 
 defineExpose({ refresh });
 </script>

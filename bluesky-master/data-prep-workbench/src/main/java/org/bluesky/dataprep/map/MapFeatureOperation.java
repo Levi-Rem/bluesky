@@ -7,9 +7,11 @@ public class MapFeatureOperation {
 
     /** CREATE / UPDATE_GEOMETRY / UPDATE_PROPERTIES / DELETE */
     private String operationType;
-    /** nav-point / airspace */
+    /** nav-point / airspace / airway / wind-field / sig-weather / radar-site */
     private String entityType;
     private String entityId;
+    /** 地图要素标识；一个业务对象包含多个几何要素时用于精确定位。 */
+    private String featureId;
     private int revision;
     /** GeoJSON 对象文本（UPDATE_GEOMETRY） */
     private String geometry;
@@ -38,6 +40,14 @@ public class MapFeatureOperation {
 
     public void setEntityId(String entityId) {
         this.entityId = entityId;
+    }
+
+    public String getFeatureId() {
+        return featureId;
+    }
+
+    public void setFeatureId(String featureId) {
+        this.featureId = featureId;
     }
 
     public int getRevision() {

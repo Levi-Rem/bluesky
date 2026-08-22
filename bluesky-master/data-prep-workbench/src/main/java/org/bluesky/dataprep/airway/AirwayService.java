@@ -63,6 +63,7 @@ public class AirwayService {
     public AirwayRow update(String id, AirwayRow body) {
         AirwayRow current = get(id);
         Guards.requireEditableSource(current.getSourceType(), "编辑");
+        preserveProcedureMetadata(body, current);
         validate(body);
         Guards.requireCodeUnique(mapper.countByCode(body.getCode(), id) > 0, body.getCode());
         body.setId(id);
@@ -73,6 +74,18 @@ public class AirwayService {
         }
         revisionService.increment();
         return get(id);
+    }
+
+    private void preserveProcedureMetadata(AirwayRow body, AirwayRow current) {
+        if (body.getRouteType() == null || body.getRouteType().isEmpty()) {
+            body.setRouteType(current.getRouteType());
+        }
+        if (body.getProcedureAirport() == null) body.setProcedureAirport(current.getProcedureAirport());
+        if (body.getProcedureProfile() == null) body.setProcedureProfile(current.getProcedureProfile());
+        if (body.getProcedureRunway() == null) body.setProcedureRunway(current.getProcedureRunway());
+        if (body.getProcedureDirection() == null) body.setProcedureDirection(current.getProcedureDirection());
+        if (body.getProcedureOperation() == null) body.setProcedureOperation(current.getProcedureOperation());
+        if (body.getEligibleRoute() == null) body.setEligibleRoute(current.getEligibleRoute());
     }
 
     @Transactional
@@ -133,9 +146,18 @@ public class AirwayService {
         if (row.getSourceType() == null || row.getSourceType().isEmpty()) {
             row.setSourceType("MANUAL");
         }
+        if (row.getRouteType() == null || row.getRouteType().isEmpty()) {
+            row.setRouteType("CODED_ROUTE");
+        }
     }
 
     private void validate(AirwayRow row) {
+        if (row.getRouteType() != null
+                && !"CODED_ROUTE".equals(row.getRouteType())
+                && !"SID".equals(row.getRouteType())
+                && !"STAR".equals(row.getRouteType())) {
+            throw ApiException.badRequest("航路类型仅允许 CODED_ROUTE / SID / STAR");
+        }
         if (row.getAirwayDirection() != null
                 && !"ONE_WAY".equals(row.getAirwayDirection())
                 && !"TWO_WAY".equals(row.getAirwayDirection())) {

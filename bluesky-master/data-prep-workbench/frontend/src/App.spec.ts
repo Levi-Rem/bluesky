@@ -21,14 +21,17 @@ describe('App 骨架', () => {
     expect(text).toContain('数据编辑');
   });
 
-  it('空域数据菜单包含机场入口', async () => {
+  it('空域数据菜单包含空域信息、航路与物理扇区入口', async () => {
     const wrapper = mount(App, {
       global: {
         plugins: [createPinia()],
         stubs: { DataTable: true }
       }
     });
-    expect(wrapper.text()).toContain('导航数据');
+    expect(wrapper.text()).toContain('空域信息');
+    expect(wrapper.text()).toContain('航路');
+    expect(wrapper.text()).toContain('物理扇区');
+    expect(wrapper.text()).not.toContain('机场');
     const nav = wrapper.findAll('.nav-button');
     expect(nav.length).toBeGreaterThanOrEqual(5);
   });

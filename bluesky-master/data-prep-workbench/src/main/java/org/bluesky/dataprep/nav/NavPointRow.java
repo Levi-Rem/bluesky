@@ -24,6 +24,14 @@ public class NavPointRow {
     private Double frequencyMhz;
     private Double magneticVariationDeg;
     private String description;
+    /** ASF 原始点类型与字段，便于和运行系统数据逐项追溯。 */
+    private String sourcePointType;
+    private String coordinateText;
+    private String relevantFlag;
+    private String applicableAirports;
+    private String pilotFlag;
+    private String dtiFlag;
+    private String tfmFlag;
     private String status = "ENABLED";
     private String sourceType = "MANUAL";
     private String sourceReference;
@@ -113,6 +121,21 @@ public class NavPointRow {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public String getSourcePointType() { return sourcePointType; }
+    public void setSourcePointType(String sourcePointType) { this.sourcePointType = sourcePointType; }
+    public String getCoordinateText() { return coordinateText; }
+    public void setCoordinateText(String coordinateText) { this.coordinateText = coordinateText; }
+    public String getRelevantFlag() { return relevantFlag; }
+    public void setRelevantFlag(String relevantFlag) { this.relevantFlag = relevantFlag; }
+    public String getApplicableAirports() { return applicableAirports; }
+    public void setApplicableAirports(String applicableAirports) { this.applicableAirports = applicableAirports; }
+    public String getPilotFlag() { return pilotFlag; }
+    public void setPilotFlag(String pilotFlag) { this.pilotFlag = pilotFlag; }
+    public String getDtiFlag() { return dtiFlag; }
+    public void setDtiFlag(String dtiFlag) { this.dtiFlag = dtiFlag; }
+    public String getTfmFlag() { return tfmFlag; }
+    public void setTfmFlag(String tfmFlag) { this.tfmFlag = tfmFlag; }
 
     public String getStatus() {
         return status;
