@@ -124,11 +124,11 @@ public class EntitySchemas {
                 col("code", "编码*"), col("name", "名称*"), col("icao", "ICAO"), col("iata", "IATA"),
                 col("country", "国家"), col("airportGrade", "等级"), col("longitude", "经度*"),
                 col("latitude", "纬度*"), col("elevationM", "标高(米)"), col("maxRunwayLengthM", "最长跑道(米)"),
-                col("runways", "跑道(跑道号:长度:宽度:真方位:道面;…)"));
+                col("runways", "跑道(跑道号:长度:宽度:真方位:道面:入口1经度:入口1纬度:入口2经度:入口2纬度:磁方位:状态;…)"));
         schemas.put("airport", new EntitySchema<>(
                 "airport", "机场", cols,
                 Arrays.asList("ZBTJ", "天津滨海", "ZBTJ", "TSN", "CN", "4F", "117.35", "39.12", "3", "3600",
-                        "16R/34L:3600:60:162:ASPHALT"),
+                        "16R/34L:3600:60:162:ASPHALT:117.34:39.11:117.36:39.13:155:ACTIVE"),
                 (page, size) -> airportService.list(page, size).getItems().stream()
                         .map(row -> airportService.get(row.getId())).collect(Collectors.toList()),
                 AirportRow::getCode,
@@ -197,32 +197,29 @@ public class EntitySchemas {
 
     private void registerAirway() {
         List<ExcelColumn> cols = Arrays.asList(
-                col("code", "编码*"), col("name", "名称*"), col("airwayDirection", "方向*(ONE_WAY/TWO_WAY)"),
-                col("lowerValue", "下限值"), col("lowerReference", "下限基准"),
-                col("upperValue", "上限值"), col("upperReference", "上限基准"),
-                col("segments", "航段(起点编码-终点编码;…)"));
+                col("code", "名称*"), col("routePath", "航路*(点编码空格分隔)"),
+                col("routeType", "类型*(CODED_ROUTE/SID/STAR)"));
         schemas.put("airway", new EntitySchema<>(
                 "airway", "航路", cols,
-                Arrays.asList("T-800", "示例航路", "TWO_WAY", "6000", "MSL", "12000", "MSL", "PUD-SASAN;SASAN-AND"),
+                Arrays.asList("T-800", "PUD SASAN AND", "CODED_ROUTE"),
                 (page, size) -> airwayService.list(page, size).getItems(),
                 AirwayRow::getCode,
                 row -> Arrays.asList(
-                        row.getCode(), row.getName(), row.getAirwayDirection(),
-                        str(row.getLowerValue()), nz(row.getLowerReference()),
-                        str(row.getUpperValue()), nz(row.getUpperReference()), packSegments(row)),
+                        row.getCode(), packRoutePath(row), row.getRouteType()),
                 (fields, existing) -> {
                     Map<String, String> navIndex = navCodeIndex();
                     AirwayRow row = new AirwayRow();
                     row.setCode(req(fields, "code", "编码"));
-                    row.setName(req(fields, "name", "名称"));
-                    row.setAirwayDirection(req(fields, "airwayDirection", "方向"));
-                    row.setLowerValue(dbl(fields, "lowerValue", "下限值", false));
-                    row.setLowerReference(fields.get("lowerReference"));
-                    row.setUpperValue(dbl(fields, "upperValue", "上限值", false));
-                    row.setUpperReference(fields.get("upperReference"));
-                    row.setSegments(parseSegments(fields.get("segments"), navIndex));
+                    row.setName(row.getCode());
+                    row.setRouteType(req(fields, "routeType", "类型").toUpperCase(java.util.Locale.ROOT));
+                    row.setAirwayDirection("CODED_ROUTE".equals(row.getRouteType()) ? "TWO_WAY" : "ONE_WAY");
+                    row.setSegments(parseRoutePath(fields.get("routePath"), navIndex));
                     if (existing != null) {
                         AirwayRow prior = (AirwayRow) existing;
+                        row.setLowerValue(prior.getLowerValue());
+                        row.setLowerReference(prior.getLowerReference());
+                        row.setUpperValue(prior.getUpperValue());
+                        row.setUpperReference(prior.getUpperReference());
                         row.setRevision(prior.getRevision());
                         return airwayService.update(prior.getId(), row);
                     }
@@ -382,9 +379,7 @@ public class EntitySchemas {
                     row.setDestinationPort(intg(fields, "destinationPort", "目标端口", false));
                     row.setTtl(intg(fields, "ttl", "TTL", false));
                     row.setMaximumDatagramBytes(intg(fields, "maximumDatagramBytes", "最大报文", false));
-                    row.setChannelEnabled(fields.get("channelEnabled") == null
-                            || fields.get("channelEnabled").isEmpty()
-                            || "true".equalsIgnoreCase(fields.get("channelEnabled")));
+                    row.setChannelEnabled(bool(fields, "channelEnabled", "通道启用", true));
                     row.setBoundSiteIds(parseSiteCodes(fields.get("boundSites"), siteIndex));
                     if (existing != null) {
                         AsterixChannelRow prior = (AsterixChannelRow) existing;
@@ -403,7 +398,9 @@ public class EntitySchemas {
         }
         return row.getRunways().stream()
                 .map(r -> joinWith(":", nz(r.getDesignation()), str(r.getLengthM()), str(r.getWidthM()),
-                        str(r.getTrueHeadingDeg()), nz(r.getSurface())))
+                        str(r.getTrueHeadingDeg()), nz(r.getSurface()), str(r.getThr1Longitude()),
+                        str(r.getThr1Latitude()), str(r.getThr2Longitude()), str(r.getThr2Latitude()),
+                        str(r.getMagneticHeadingDeg()), nz(r.getRunwayStatus())))
                 .collect(Collectors.joining(";"));
     }
 
@@ -413,7 +410,7 @@ public class EntitySchemas {
             return runways;
         }
         for (String item : packed.split(";")) {
-            String[] parts = item.split(":");
+            String[] parts = item.split(":", -1);
             if (parts.length < 1 || parts[0].trim().isEmpty()) {
                 continue;
             }
@@ -423,35 +420,41 @@ public class EntitySchemas {
             runway.setWidthM(parts.length > 2 ? parseIntOrNull(parts[2]) : null);
             runway.setTrueHeadingDeg(parts.length > 3 ? parseDoubleOrNull(parts[3]) : null);
             runway.setSurface(parts.length > 4 ? parts[4].trim() : null);
+            runway.setThr1Longitude(parts.length > 5 ? parseDoubleOrNull(parts[5]) : null);
+            runway.setThr1Latitude(parts.length > 6 ? parseDoubleOrNull(parts[6]) : null);
+            runway.setThr2Longitude(parts.length > 7 ? parseDoubleOrNull(parts[7]) : null);
+            runway.setThr2Latitude(parts.length > 8 ? parseDoubleOrNull(parts[8]) : null);
+            runway.setMagneticHeadingDeg(parts.length > 9 ? parseDoubleOrNull(parts[9]) : null);
+            runway.setRunwayStatus(parts.length > 10 && !parts[10].trim().isEmpty()
+                    ? parts[10].trim().toUpperCase(java.util.Locale.ROOT) : "ACTIVE");
             runways.add(runway);
         }
         return runways;
     }
 
-    private String packSegments(AirwayRow row) {
-        if (row.getSegments() == null) {
-            return "";
-        }
-        return row.getSegments().stream()
-                .map(s -> nz(s.getStartPointCode()) + "-" + nz(s.getEndPointCode()))
-                .collect(Collectors.joining(";"));
+    private String packRoutePath(AirwayRow row) {
+        if (row.getSegments() == null || row.getSegments().isEmpty()) return "";
+        List<String> codes = new ArrayList<>();
+        codes.add(nz(row.getSegments().get(0).getStartPointCode()));
+        for (AirwaySegmentRow segment : row.getSegments()) codes.add(nz(segment.getEndPointCode()));
+        return String.join(" ", codes);
     }
 
-    private List<AirwaySegmentRow> parseSegments(String packed, Map<String, String> navIndex) {
+    private List<AirwaySegmentRow> parseRoutePath(String packed, Map<String, String> navIndex) {
         List<AirwaySegmentRow> segments = new ArrayList<>();
         if (blankToNull(packed) == null) {
             return segments;
         }
-        for (String item : packed.split(";")) {
-            String[] pair = item.split("-");
-            if (pair.length != 2) {
-                throw org.bluesky.dataprep.common.ApiException.badRequest("航段格式应为 起点编码-终点编码：" + item);
-            }
-            String startId = navIndex.get(pair[0].trim());
-            String endId = navIndex.get(pair[1].trim());
+        String[] codes = packed.trim().split("\\s+");
+        if (codes.length < 2) {
+            throw org.bluesky.dataprep.common.ApiException.badRequest("航路至少需要两个以空格分隔的导航点");
+        }
+        for (int i = 0; i < codes.length - 1; i++) {
+            String startId = navIndex.get(codes[i].toUpperCase(java.util.Locale.ROOT));
+            String endId = navIndex.get(codes[i + 1].toUpperCase(java.util.Locale.ROOT));
             if (startId == null || endId == null) {
                 throw org.bluesky.dataprep.common.ApiException.badRequest(
-                        "航段引用的导航点不存在：" + item);
+                        "航路引用的导航点不存在：" + (startId == null ? codes[i] : codes[i + 1]));
             }
             AirwaySegmentRow segment = new AirwaySegmentRow();
             segment.setStartPointId(startId);
@@ -513,7 +516,7 @@ public class EntitySchemas {
             return ids;
         }
         for (String code : packed.split(";")) {
-            String id = siteIndex.get(code.trim());
+            String id = siteIndex.get(code.trim().toUpperCase(java.util.Locale.ROOT));
             if (id == null) {
                 throw org.bluesky.dataprep.common.ApiException.badRequest("绑定的雷达站编码不存在：" + code);
             }
@@ -525,7 +528,7 @@ public class EntitySchemas {
     private Map<String, String> navCodeIndex() {
         Map<String, String> index = new HashMap<>();
         for (NavPointRow point : allNavigationPoints()) {
-            index.put(point.getCode(), point.getId());
+            index.put(point.getCode().toUpperCase(java.util.Locale.ROOT), point.getId());
         }
         return index;
     }
@@ -533,7 +536,7 @@ public class EntitySchemas {
     private Map<String, String> siteCodeIndex() {
         Map<String, String> index = new HashMap<>();
         for (RadarSiteRow site : allRadarSites()) {
-            index.put(site.getCode(), site.getId());
+            index.put(site.getCode().toUpperCase(java.util.Locale.ROOT), site.getId());
         }
         return index;
     }
@@ -549,7 +552,7 @@ public class EntitySchemas {
                 Arrays.asList("浦东风切变", "WIND_SHEAR",
                         "311200N1211800E 312400N1213600E 310600N1214800E", "S0000", "S3000"),
                 (page, size) -> weatherAreaService.list(page, size).getItems(),
-                WeatherAreaRow::getId,
+                row -> weatherExcelKey(row.getName(), row.getWeatherType()),
                 row -> Arrays.asList(row.getName(), row.getWeatherType(), nz(row.getArea()),
                         row.getLowerLimit(), row.getUpperLimit()),
                 (fields, existing) -> {
@@ -559,6 +562,11 @@ public class EntitySchemas {
                     row.setArea(req(fields, "area", "区域"));
                     row.setLowerLimit(req(fields, "lowerLimit", "下限"));
                     row.setUpperLimit(req(fields, "upperLimit", "上限"));
+                    if (existing != null) {
+                        WeatherAreaRow prior = (WeatherAreaRow) existing;
+                        row.setRevision(prior.getRevision());
+                        return weatherAreaService.update(prior.getId(), row);
+                    }
                     return weatherAreaService.create(row);
                 }));
     }
@@ -584,7 +592,12 @@ public class EntitySchemas {
     }
 
     private static String performanceExcelKey(String code, String icao, String reacat, String altitude) {
-        return nz(code) + "/" + nz(icao) + "/" + nz(reacat) + "/" + nz(altitude);
+        return (nz(code) + "/" + nz(icao) + "/" + nz(reacat) + "/" + nz(altitude))
+                .trim().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private static String weatherExcelKey(String name, String weatherType) {
+        return (nz(name) + "/" + nz(weatherType)).trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     private List<NavPointRow> allNavigationPoints() {
@@ -650,7 +663,9 @@ public class EntitySchemas {
             return null;
         }
         try {
-            return Double.parseDouble(value);
+            double parsed = Double.parseDouble(value);
+            if (!Double.isFinite(parsed)) throw new NumberFormatException("non-finite");
+            return parsed;
         } catch (NumberFormatException ex) {
             throw org.bluesky.dataprep.common.ApiException.badRequest(label + "必须是数字：" + value);
         }
@@ -658,7 +673,19 @@ public class EntitySchemas {
 
     static Integer intg(Map<String, String> fields, String key, String label, boolean required) {
         Double value = dbl(fields, key, label, required);
-        return value == null ? null : (int) Math.round(value);
+        if (value == null) return null;
+        if (value != Math.rint(value) || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+            throw org.bluesky.dataprep.common.ApiException.badRequest(label + "必须是整数：" + value);
+        }
+        return value.intValue();
+    }
+
+    static Boolean bool(Map<String, String> fields, String key, String label, boolean defaultValue) {
+        String value = blankToNull(fields.get(key));
+        if (value == null) return defaultValue;
+        if ("true".equalsIgnoreCase(value)) return Boolean.TRUE;
+        if ("false".equalsIgnoreCase(value)) return Boolean.FALSE;
+        throw org.bluesky.dataprep.common.ApiException.badRequest(label + "仅允许 true / false：" + value);
     }
 
     static LocalDateTime dateTime(String value, String label) {
@@ -676,7 +703,10 @@ public class EntitySchemas {
 
     static Double parseDoubleOrNull(String text) {
         try {
-            return text == null || text.trim().isEmpty() ? null : Double.parseDouble(text.trim());
+            if (text == null || text.trim().isEmpty()) return null;
+            double value = Double.parseDouble(text.trim());
+            if (!Double.isFinite(value)) throw new NumberFormatException("non-finite");
+            return value;
         } catch (NumberFormatException ex) {
             throw org.bluesky.dataprep.common.ApiException.badRequest("数字格式错误：" + text);
         }
@@ -684,6 +714,10 @@ public class EntitySchemas {
 
     static Integer parseIntOrNull(String text) {
         Double value = parseDoubleOrNull(text);
-        return value == null ? null : (int) Math.round(value);
+        if (value == null) return null;
+        if (value != Math.rint(value) || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+            throw org.bluesky.dataprep.common.ApiException.badRequest("必须是整数：" + text);
+        }
+        return value.intValue();
     }
 }

@@ -3,7 +3,6 @@ package org.bluesky.dataprep.airway;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 public class AirwayRow {
@@ -25,14 +24,14 @@ public class AirwayRow {
     private String rnpCapabilityPost2012;
     private String rvsmLevel;
     /** CODED_ROUTE / SID / STAR。 */
-    private String routeType = "CODED_ROUTE";
+    private String routeType;
     private String procedureAirport;
     private String procedureProfile;
     private String procedureRunway;
     private String procedureDirection;
     private String procedureOperation;
     private String eligibleRoute;
-    private String status = "ENABLED";
+    private String status;
     private String sourceType = "MANUAL";
     private String sourceReference;
     private int revision;
@@ -40,7 +39,7 @@ public class AirwayRow {
     private String createdBy = "local";
     private LocalDateTime updatedAt;
     private String updatedBy = "local";
-    private List<AirwaySegmentRow> segments = new ArrayList<>();
+    private List<AirwaySegmentRow> segments;
 
     public String getId() {
         return id;
@@ -55,7 +54,7 @@ public class AirwayRow {
     }
 
     public void setCode(String code) {
-        this.code = code;
+        this.code = code == null ? null : code.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     public String getName() {

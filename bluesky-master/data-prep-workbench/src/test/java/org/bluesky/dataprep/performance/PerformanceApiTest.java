@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -34,7 +35,7 @@ class PerformanceApiTest {
     }
 
     @Test
-    void createLayerAndSynchronizeCommonPerformance() throws Exception {
+    void heightLayersRemainIndependent() throws Exception {
         MvcResult first = mockMvc.perform(post("/api/performance")
                         .contentType(APPLICATION_JSON)
                         .content("{\"code\":\"ARJ21\",\"name\":\"ARJ21\",\"manufacturer\":\"COMAC\","+
@@ -55,8 +56,8 @@ class PerformanceApiTest {
 
         MvcResult refreshed = mockMvc.perform(get("/api/performance/{id}", firstId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.holdingSpeedLow").value("N0190"))
-                .andExpect(jsonPath("$.turnResponse1").value(66))
+                .andExpect(jsonPath("$.holdingSpeedLow").value("N0180"))
+                .andExpect(jsonPath("$.turnResponse1").value(50))
                 .andExpect(jsonPath("$.cruiseSpeed").value("N0300"))
                 .andReturn();
         int revision = JsonPath.read(refreshed.getResponse().getContentAsString(), "$.revision");
@@ -80,5 +81,20 @@ class PerformanceApiTest {
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/performance").contentType(APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deletedAltitudeLayerCanBeCreatedAgain() throws Exception {
+        String body = "{\"code\":\"REUSE1\",\"name\":\"REUSE1\",\"icaoWakeCategory\":\"M\","
+                + "\"reacatWakeCategory\":\"M\",\"altitudeLayer\":\"F120\"}";
+        MvcResult created = mockMvc.perform(post("/api/performance")
+                        .contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andReturn();
+        String id = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        int revision = JsonPath.read(created.getResponse().getContentAsString(), "$.revision");
+        mockMvc.perform(delete("/api/performance/{id}", id).param("revision", String.valueOf(revision)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/performance").contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
     }
 }

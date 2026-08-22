@@ -1,6 +1,5 @@
 package org.bluesky.dataprep.performance;
 
-import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -89,7 +88,8 @@ public interface PerformanceMapper {
     @Update("UPDATE aircraft_type SET code=#{code}, name=#{name}, manufacturer=#{manufacturer}, "
             + "model_name=#{modelName}, engine_type=#{engineType}, icao_wake_category=#{icaoWakeCategory}, "
             + "reacat_wake_category=#{reacatWakeCategory}, maximum_takeoff_weight_kg=#{maximumTakeoffWeightKg}, "
-            + "performance_category=#{performanceCategory}, status=#{status}, updated_by=#{updatedBy}, "
+            + "performance_category=#{performanceCategory}, updated_by=#{updatedBy}, "
+            + "updated_at=CURRENT_TIMESTAMP(3), "
             + "revision=revision+1 WHERE id=#{aircraftId} AND deleted=FALSE")
     int updateAircraft(PerformanceRow row);
 
@@ -116,38 +116,22 @@ public interface PerformanceMapper {
             + "WHERE id=#{id} AND revision=#{revision} AND deleted=FALSE")
     int updateLayer(PerformanceRow row);
 
-    @Update("UPDATE aircraft_performance SET holding_speed_low=#{holdingSpeedLow}, "
-            + "holding_speed_middle=#{holdingSpeedMiddle}, holding_speed_high=#{holdingSpeedHigh}, "
-            + "takeoff_speed=#{takeoffSpeed}, takeoff_duration_s=#{takeoffDurationS}, "
-            + "takeoff_altitude_ft=#{takeoffAltitudeFt}, takeoff_distance_nm=#{takeoffDistanceNm}, "
-            + "landing_speed=#{landingSpeed}, radar_cross_section=#{radarCrossSection}, "
-            + "maximum_speed=#{maximumSpeed}, maximum_altitude_layer=#{maximumAltitudeLayer}, "
-            + "maximum_turn=#{maximumTurn}, mach_capable=#{machCapable}, jet_aircraft=#{jetAircraft}, "
-            + "standard_turn=#{standardTurn}, turn_response_1=#{turnResponse1}, "
-            + "turn_response_2=#{turnResponse2}, turn_response_3=#{turnResponse3}, "
-            + "acceleration_response_1=#{accelerationResponse1}, acceleration_response_2=#{accelerationResponse2}, "
-            + "acceleration_response_3=#{accelerationResponse3}, deceleration_response_1=#{decelerationResponse1}, "
-            + "deceleration_response_2=#{decelerationResponse2}, deceleration_response_3=#{decelerationResponse3}, "
-            + "climb_response_1=#{climbResponse1}, climb_response_2=#{climbResponse2}, "
-            + "climb_response_3=#{climbResponse3}, descent_response_1=#{descentResponse1}, "
-            + "descent_response_2=#{descentResponse2}, descent_response_3=#{descentResponse3}, "
-            + "updated_by=#{updatedBy}, revision=revision+1 WHERE aircraft_id=#{aircraftId} "
-            + "AND id<>#{id} AND deleted=FALSE")
-    int synchronizeCommonFields(PerformanceRow row);
+    @Update("UPDATE aircraft_performance SET revision=revision+1, updated_at=CURRENT_TIMESTAMP(3) "
+            + "WHERE id=#{id} AND revision=#{revision} AND deleted=FALSE")
+    int touchLayerRevision(@Param("id") String id, @Param("revision") int revision);
 
-    @Update("UPDATE aircraft_performance SET deleted=TRUE, revision=revision+1 "
+    @Update("UPDATE aircraft_type SET status=#{status}, revision=revision+1, updated_at=CURRENT_TIMESTAMP(3) "
+            + "WHERE id=#{aircraftId} AND deleted=FALSE")
+    int updateAircraftStatus(@Param("aircraftId") String aircraftId, @Param("status") String status);
+
+    @Update("UPDATE aircraft_performance SET deleted=TRUE, updated_at=CURRENT_TIMESTAMP(3), revision=revision+1 "
             + "WHERE id=#{id} AND revision=#{revision} AND deleted=FALSE")
     int markDeleted(@Param("id") String id, @Param("revision") int revision);
 
     @Select("SELECT COUNT(*) FROM aircraft_performance WHERE aircraft_id=#{aircraftId} AND deleted=FALSE")
     int countAircraftLayers(String aircraftId);
 
-    @Update("UPDATE aircraft_type SET deleted=TRUE, revision=revision+1 WHERE id=#{aircraftId} AND deleted=FALSE")
+    @Update("UPDATE aircraft_type SET deleted=TRUE, updated_at=CURRENT_TIMESTAMP(3), revision=revision+1 WHERE id=#{aircraftId} AND deleted=FALSE")
     int markAircraftDeleted(String aircraftId);
 
-    @Delete("DELETE FROM aircraft_performance")
-    int deleteAllPerformance();
-
-    @Delete("DELETE FROM aircraft_type")
-    int deleteAllAircraft();
 }

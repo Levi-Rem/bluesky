@@ -331,7 +331,7 @@ public class MapService {
         } else if ("airway".equals(operation.getEntityType())) {
             airwayService.delete(operation.getEntityId(), operation.getRevision());
         } else if ("wind-field".equals(operation.getEntityType())) {
-            windFieldService.delete(operation.getEntityId(), operation.getRevision());
+            windFieldService.deletePoint(operation.getEntityId(), operation.getFeatureId(), operation.getRevision());
         } else if ("sig-weather".equals(operation.getEntityType())) {
             weatherAreaService.delete(operation.getEntityId(), operation.getRevision());
         } else if ("radar-site".equals(operation.getEntityType())) {
@@ -492,12 +492,12 @@ public class MapService {
         }
         longitude /= size;
         latitude /= size;
-        double radiusDegrees = 0;
+        double radiusNm = 0;
         for (List<Double> coordinate : ring) {
-            radiusDegrees = Math.max(radiusDegrees, Math.hypot(
-                    coordinate.get(0) - longitude, coordinate.get(1) - latitude));
+            radiusNm = Math.max(radiusNm, greatCircleNm(
+                    longitude, latitude, coordinate.get(0), coordinate.get(1)));
         }
-        return new RadarCoverage(round6(longitude), round6(latitude), round6(radiusDegrees * 60));
+        return new RadarCoverage(round6(longitude), round6(latitude), round6(radiusNm));
     }
 
     private static final class RadarCoverage {
@@ -572,13 +572,21 @@ public class MapService {
         return geometry;
     }
 
-    /** 以站点为圆心、最大距离为半径的近似多边形（24 边）。 */
+    /** 以站点为圆心、最大距离为半径的球面近似多边形（24 边）。 */
     private Map<String, Object> coveragePolygon(Double lon, Double lat, Double rangeNm) {
-        double radiusDeg = rangeNm == null ? 0.5 : rangeNm / 60.0;
+        double angularDistance = (rangeNm == null ? 30.0 : rangeNm) / 3440.065;
+        double latitudeRad = Math.toRadians(lat);
+        double longitudeRad = Math.toRadians(lon);
         List<List<Double>> ring = new ArrayList<>();
         for (int i = 0; i <= 24; i++) {
-            double angle = 2 * Math.PI * i / 24;
-            ring.add(coord(lon + radiusDeg * Math.cos(angle), lat + radiusDeg * Math.sin(angle)));
+            double bearing = 2 * Math.PI * i / 24;
+            double targetLatitude = Math.asin(Math.sin(latitudeRad) * Math.cos(angularDistance)
+                    + Math.cos(latitudeRad) * Math.sin(angularDistance) * Math.cos(bearing));
+            double targetLongitude = longitudeRad + Math.atan2(
+                    Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitudeRad),
+                    Math.cos(angularDistance) - Math.sin(latitudeRad) * Math.sin(targetLatitude));
+            double normalizedLongitude = (Math.toDegrees(targetLongitude) + 540) % 360 - 180;
+            ring.add(coord(normalizedLongitude, Math.toDegrees(targetLatitude)));
         }
         Map<String, Object> geometry = new LinkedHashMap<>();
         geometry.put("type", "Polygon");
@@ -586,6 +594,15 @@ public class MapService {
         polygons.add(ring);
         geometry.put("coordinates", polygons);
         return geometry;
+    }
+
+    private double greatCircleNm(double lon1, double lat1, double lon2, double lat2) {
+        double latitudeDelta = Math.toRadians(lat2 - lat1);
+        double longitudeDelta = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(longitudeDelta / 2) * Math.sin(longitudeDelta / 2);
+        return 3440.065 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
     }
 
     private List<Double> coord(double lon, double lat) {
@@ -633,22 +650,22 @@ public class MapService {
     @Mapper
     public interface MapRefMapper {
 
-        @Update("UPDATE navigation_point SET source_type = 'MANUAL' WHERE id = #{id} AND source_type = 'BLUESKY'")
+        @Update("UPDATE navigation_point SET source_type = 'MANUAL', updated_at = CURRENT_TIMESTAMP(3) WHERE id = #{id} AND source_type = 'BLUESKY'")
         int promoteNavPoint(String id);
 
-        @Update("UPDATE airspace SET source_type = 'MANUAL' WHERE id = #{id} AND source_type = 'BLUESKY'")
+        @Update("UPDATE airspace SET source_type = 'MANUAL', updated_at = CURRENT_TIMESTAMP(3) WHERE id = #{id} AND source_type = 'BLUESKY'")
         int promoteAirspace(String id);
 
-        @Update("UPDATE airway SET source_type = 'MANUAL' WHERE id = #{id} AND source_type = 'BLUESKY'")
+        @Update("UPDATE airway SET source_type = 'MANUAL', updated_at = CURRENT_TIMESTAMP(3) WHERE id = #{id} AND source_type = 'BLUESKY'")
         int promoteAirway(String id);
 
-        @Update("UPDATE wind_field SET source_type = 'MANUAL' WHERE id = #{id} AND source_type = 'BLUESKY'")
+        @Update("UPDATE wind_field SET source_type = 'MANUAL', updated_at = CURRENT_TIMESTAMP(3) WHERE id = #{id} AND source_type = 'BLUESKY'")
         int promoteWindField(String id);
 
-        @Update("UPDATE significant_weather_area SET source_type = 'MANUAL' WHERE id = #{id} AND source_type = 'BLUESKY'")
+        @Update("UPDATE significant_weather_area SET source_type = 'MANUAL', updated_at = CURRENT_TIMESTAMP(3) WHERE id = #{id} AND source_type = 'BLUESKY'")
         int promoteWeatherArea(String id);
 
-        @Update("UPDATE logical_radar_site SET source_type = 'MANUAL' WHERE id = #{id} AND source_type = 'BLUESKY'")
+        @Update("UPDATE logical_radar_site SET source_type = 'MANUAL', updated_at = CURRENT_TIMESTAMP(3) WHERE id = #{id} AND source_type = 'BLUESKY'")
         int promoteRadarSite(String id);
 
         @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", revision AS \"revision\" FROM airway WHERE deleted = FALSE")
@@ -672,7 +689,7 @@ public class MapService {
                 + "WHERE p.deleted = FALSE AND w.deleted = FALSE")
         List<Map<String, Object>> selectWindPoints();
 
-        @Update("UPDATE wind_field_point SET longitude = #{longitude}, latitude = #{latitude} "
+        @Update("UPDATE wind_field_point SET longitude = #{longitude}, latitude = #{latitude}, updated_at = CURRENT_TIMESTAMP(3) "
                 + "WHERE id = #{id} AND deleted = FALSE")
         int updateWindPointGeometry(@Param("id") String id, @Param("longitude") double longitude,
                                     @Param("latitude") double latitude);

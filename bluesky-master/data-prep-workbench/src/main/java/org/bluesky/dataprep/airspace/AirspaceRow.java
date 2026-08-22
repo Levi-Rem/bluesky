@@ -21,7 +21,7 @@ public class AirspaceRow {
     private String upperReference;
     private LocalDateTime validFrom;
     private LocalDateTime validTo;
-    private String status = "ENABLED";
+    private String status;
     private String sourceType = "MANUAL";
     private String sourceReference;
     private int revision;
@@ -43,7 +43,7 @@ public class AirspaceRow {
     }
 
     public void setCode(String code) {
-        this.code = code;
+        this.code = code == null ? null : code.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     public String getName() {

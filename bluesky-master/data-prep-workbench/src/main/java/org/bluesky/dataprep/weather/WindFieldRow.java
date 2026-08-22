@@ -3,7 +3,6 @@ package org.bluesky.dataprep.weather;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 public class WindFieldRow {
@@ -20,7 +19,7 @@ public class WindFieldRow {
     private String boundary;
     private LocalDateTime effectiveFrom;
     private LocalDateTime effectiveTo;
-    private String status = "ENABLED";
+    private String status;
     private String sourceType = "MANUAL";
     private String sourceReference;
     private int revision;
@@ -28,7 +27,7 @@ public class WindFieldRow {
     private String createdBy = "local";
     private LocalDateTime updatedAt;
     private String updatedBy = "local";
-    private List<WindPointRow> points = new ArrayList<>();
+    private List<WindPointRow> points;
 
     public String getId() {
         return id;
@@ -43,7 +42,7 @@ public class WindFieldRow {
     }
 
     public void setCode(String code) {
-        this.code = code;
+        this.code = code == null ? null : code.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     public String getName() {

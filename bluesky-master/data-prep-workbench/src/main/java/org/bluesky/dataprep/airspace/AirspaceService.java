@@ -2,6 +2,7 @@ package org.bluesky.dataprep.airspace;
 
 import org.bluesky.dataprep.common.ApiException;
 import org.bluesky.dataprep.common.Guards;
+import org.bluesky.dataprep.common.GeoJsonValidator;
 import org.bluesky.dataprep.common.PageResult;
 import org.bluesky.dataprep.common.RevisionService;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,7 @@ public class AirspaceService {
 
     public PageResult<AirspaceRow> list(int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safePage = org.bluesky.dataprep.common.Paging.safePage(page, safeSize);
         return new PageResult<>(
                 mapper.selectPage(safePage * safeSize, safeSize),
                 safePage, safeSize, mapper.count());
@@ -61,6 +62,10 @@ public class AirspaceService {
         Guards.requireCodeUnique(mapper.countByCode(body.getCode(), id) > 0, body.getCode());
         body.setId(id);
         body.setSourceType(current.getSourceType());
+        if (body.getStatus() == null) body.setStatus(current.getStatus());
+        if (body.getSourceReference() == null) body.setSourceReference(current.getSourceReference());
+        if (body.getValidFrom() == null) body.setValidFrom(current.getValidFrom());
+        if (body.getValidTo() == null) body.setValidTo(current.getValidTo());
         Guards.requireUpdated(mapper.update(body), id);
         revisionService.increment();
         return mapper.findById(id);
@@ -96,12 +101,13 @@ public class AirspaceService {
     }
 
     private void validate(AirspaceRow row) {
+        if (row.getStatus() != null && !row.getStatus().isEmpty()
+                && !"ENABLED".equals(row.getStatus()) && !"DISABLED".equals(row.getStatus())) {
+            throw ApiException.badRequest("状态仅允许 ENABLED / DISABLED");
+        }
         if (row.getAirspaceType() != null && !TYPES.contains(row.getAirspaceType())) {
             throw ApiException.badRequest("空域类型不合法：" + row.getAirspaceType());
         }
-        if (row.getBoundary() != null && !row.getBoundary().trim().isEmpty()
-                && !row.getBoundary().trim().startsWith("{")) {
-            throw ApiException.badRequest("边界必须为 GeoJSON 对象文本");
-        }
+        row.setBoundary(GeoJsonValidator.validatePolygonGeometry(row.getBoundary(), "空域边界"));
     }
 }

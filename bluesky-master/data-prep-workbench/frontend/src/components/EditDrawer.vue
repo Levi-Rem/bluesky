@@ -1,9 +1,9 @@
 <template>
-  <div class="drawer-mask" @click.self="emit('close')">
+  <div class="drawer-mask" @click.self="requestClose">
     <aside class="drawer" :class="{ wide: config.wide }">
       <header class="drawer-header">
         <strong>{{ drawerTitle }}</strong>
-        <button class="drawer-close" @click="emit('close')">×</button>
+        <button class="drawer-close" :disabled="saving" @click="requestClose">×</button>
       </header>
 
       <div class="drawer-body">
@@ -66,17 +66,17 @@
               </tr>
             </tbody>
           </table>
-          <p class="field-hint">修改通用性能或响应参数后，将同步到该机型的全部高度层。</p>
+          <p class="field-hint">响应参数仅保存到当前高度层。</p>
         </section>
 
         <p v-if="errorText" class="drawer-error">{{ errorText }}</p>
       </div>
 
       <footer class="drawer-footer" v-if="!readOnly">
-        <button class="danger-button" v-if="mode === 'edit'" @click="doDelete">删除</button>
+        <button class="danger-button" v-if="mode === 'edit'" :disabled="saving || loading" @click="doDelete">删除</button>
         <span class="spacer"></span>
-        <button class="ghost-button" @click="emit('close')">取消</button>
-        <button class="primary-button" @click="save">保存</button>
+        <button class="ghost-button" :disabled="saving" @click="requestClose">取消</button>
+        <button class="primary-button" :disabled="saving || loading || loadFailed" @click="save">{{ saving ? '保存中…' : '保存' }}</button>
       </footer>
     </aside>
   </div>
@@ -103,6 +103,10 @@ const emit = defineEmits<{ close: []; saved: []; toast: [message: string, tone?:
 const form = ref<Record<string, string>>({});
 const loadedRecord = ref<Record<string, unknown> | null>(null);
 const errorText = ref('');
+const saving = ref(false);
+const loading = ref(false);
+const loadFailed = ref(false);
+const initialForm = ref('');
 const readOnly = computed(() => props.mode === 'view');
 const responseRows = [
   { label: '转弯', keys: ['turnResponse1', 'turnResponse2', 'turnResponse3'] },
@@ -201,11 +205,14 @@ function parseNumber(value: string): number | null {
 function parseNavigationCoordinate(value: string): { latitude: number; longitude: number } {
   const dms = value.trim().match(/^(\d{2})(\d{2})(\d{2})([NS])(\d{3})(\d{2})(\d{2})([EW])$/i);
   if (dms) {
-    const latitude = Number(dms[1]) + Number(dms[2]) / 60 + Number(dms[3]) / 3600;
-    const longitude = Number(dms[5]) + Number(dms[6]) / 60 + Number(dms[7]) / 3600;
+    const latDegrees = Number(dms[1]);
+    const lonDegrees = Number(dms[5]);
+    const latitude = latDegrees + Number(dms[2]) / 60 + Number(dms[3]) / 3600;
+    const longitude = lonDegrees + Number(dms[6]) / 60 + Number(dms[7]) / 3600;
     if (Number(dms[2]) > 59 || Number(dms[3]) > 59 || Number(dms[6]) > 59 || Number(dms[7]) > 59) {
       throw new ApiError(400, '坐标中的分、秒必须小于 60');
     }
+    if (latitude > 90 || longitude > 180) throw new ApiError(400, '经纬度超出范围');
     return {
       latitude: dms[4].toUpperCase() === 'S' ? -latitude : latitude,
       longitude: dms[8].toUpperCase() === 'W' ? -longitude : longitude
@@ -360,7 +367,7 @@ async function buildBody(): Promise<Record<string, unknown>> {
     }
   }
   if (props.mode === 'edit') {
-    body.revision = props.revision ?? 0;
+    body.revision = Number(loadedRecord.value?.revision ?? props.revision ?? 0);
   }
   if (props.config.entity === 'performance') {
     for (const key of responseKeys) body[key] = parseNumber(text(form.value[key]));
@@ -387,6 +394,8 @@ async function buildBody(): Promise<Record<string, unknown>> {
 }
 
 async function save() {
+  if (saving.value || loadFailed.value) return;
+  saving.value = true;
   errorText.value = '';
   try {
     const body = await buildBody();
@@ -400,45 +409,65 @@ async function save() {
     emit('close');
   } catch (ex) {
     errorText.value = ex instanceof ApiError ? ex.message : '保存失败';
+  } finally {
+    saving.value = false;
   }
 }
 
 async function doDelete() {
-  if (!props.recordId) {
+  if (!props.recordId || saving.value) {
     return;
   }
   if (!window.confirm(`确认删除该${props.config.title}？`)) {
     return;
   }
   errorText.value = '';
+  saving.value = true;
   try {
-    await remove(props.config.entity, props.recordId, props.revision ?? 0);
+    await remove(props.config.entity, props.recordId, Number(loadedRecord.value?.revision ?? props.revision ?? 0));
     emit('toast', `${props.config.title}已删除`);
     emit('saved');
     emit('close');
   } catch (ex) {
     errorText.value = ex instanceof ApiError ? ex.message : '删除失败';
+  } finally {
+    saving.value = false;
   }
+}
+
+function requestClose() {
+  if (saving.value) return;
+  const changed = initialForm.value !== '' && JSON.stringify(form.value) !== initialForm.value;
+  if (changed && !window.confirm('仍有未保存修改，确定关闭并放弃吗？')) return;
+  emit('close');
 }
 
 onMounted(async () => {
   if (props.recordId) {
-    const record = await get<Record<string, unknown>>(props.config.entity, props.recordId);
-    loadedRecord.value = record;
-    for (const field of props.config.fields) {
-      if (field.pack) {
-        form.value[field.key] = await pack(field, record);
-      } else if (props.config.entity === 'nav-point' && field.key === 'sourcePointType') {
-        form.value[field.key] = text(record.sourcePointType ?? record.pointType);
-      } else if (props.config.entity === 'nav-point' && field.key === 'coordinateText') {
-        form.value[field.key] = text(record.coordinateText)
-          || `${text(record.latitude)}, ${text(record.longitude)}`;
-      } else {
-        form.value[field.key] = text(record[field.key]);
+    loading.value = true;
+    try {
+      const record = await get<Record<string, unknown>>(props.config.entity, props.recordId);
+      loadedRecord.value = record;
+      for (const field of props.config.fields) {
+        if (field.pack) {
+          form.value[field.key] = await pack(field, record);
+        } else if (props.config.entity === 'nav-point' && field.key === 'sourcePointType') {
+          form.value[field.key] = text(record.sourcePointType ?? record.pointType);
+        } else if (props.config.entity === 'nav-point' && field.key === 'coordinateText') {
+          form.value[field.key] = text(record.coordinateText)
+            || `${text(record.latitude)}, ${text(record.longitude)}`;
+        } else {
+          form.value[field.key] = text(record[field.key]);
+        }
       }
-    }
-    if (props.config.entity === 'performance') {
-      for (const key of responseKeys) form.value[key] = text(record[key]);
+      if (props.config.entity === 'performance') {
+        for (const key of responseKeys) form.value[key] = text(record[key]);
+      }
+    } catch (ex) {
+      loadFailed.value = true;
+      errorText.value = ex instanceof ApiError ? ex.message : '详情加载失败，请关闭后重试';
+    } finally {
+      loading.value = false;
     }
   } else {
     for (const field of props.config.fields) {
@@ -450,6 +479,7 @@ onMounted(async () => {
       for (const key of responseKeys) form.value[key] = '';
     }
   }
+  initialForm.value = JSON.stringify(form.value);
 });
 </script>
 

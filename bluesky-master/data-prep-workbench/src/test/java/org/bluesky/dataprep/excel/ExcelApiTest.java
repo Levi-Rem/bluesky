@@ -85,10 +85,9 @@ class ExcelApiTest {
 
     @Test
     void importAirwayWithSegmentCodes() throws Exception {
-        String[] headers = {"编码*", "名称*", "方向*(ONE_WAY/TWO_WAY)", "下限值", "下限基准",
-                "上限值", "上限基准", "航段(起点编码-终点编码;…)"};
+        String[] headers = {"名称*", "航路*(点编码空格分隔)", "类型*(CODED_ROUTE/SID/STAR)"};
         byte[] file = xlsx(headers, new String[][]{
-                {"AX-01", "导入航路", "TWO_WAY", "6000", "MSL", "12000", "MSL", "PUD-SASAN;SASAN-AND"}});
+                {"AX-01", "PUD SASAN AND", "CODED_ROUTE"}});
 
         mockMvc.perform(multipart("/api/imports/airway")
                         .file(new MockMultipartFile("file", "airway.xlsx",
@@ -104,11 +103,10 @@ class ExcelApiTest {
 
     @Test
     void importAirwayWithBadNavCodeFailsThatRowOnly() throws Exception {
-        String[] headers = {"编码*", "名称*", "方向*(ONE_WAY/TWO_WAY)", "下限值", "下限基准",
-                "上限值", "上限基准", "航段(起点编码-终点编码;…)"};
+        String[] headers = {"名称*", "航路*(点编码空格分隔)", "类型*(CODED_ROUTE/SID/STAR)"};
         byte[] file = xlsx(headers, new String[][]{
-                {"AX-02", "好航路", "ONE_WAY", "", "", "", "", "PUD-SASAN"},
-                {"AX-03", "坏引用", "ONE_WAY", "", "", "", "", "PUD-NOPE"}});
+                {"AX-02", "PUD SASAN", "CODED_ROUTE"},
+                {"AX-03", "PUD NOPE", "SID"}});
 
         MvcResult imported = mockMvc.perform(multipart("/api/imports/airway")
                         .file(new MockMultipartFile("file", "airway2.xlsx",
@@ -138,6 +136,43 @@ class ExcelApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.failedRows").value(1))
                 .andExpect(jsonPath("$.batchStatus").value("FAILED"));
+    }
+
+    @Test
+    void errorRowNumberIncludesBlankRowsInWorkbook() throws Exception {
+        byte[] file = navPointXlsx(new String[][]{
+                {"ROW-OK", "正确行", "VOR", "120", "30", "", "", ""},
+                null,
+                {"ROW-BAD", "错误行", "VOR", "bad", "30", "", "", ""}});
+        MvcResult imported = mockMvc.perform(multipart("/api/imports/nav-point")
+                        .file(new MockMultipartFile("file", "blank-row.xlsx",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file)))
+                .andExpect(status().isOk()).andReturn();
+        String batchId = com.jayway.jsonpath.JsonPath.read(imported.getResponse().getContentAsString(), "$.batchId");
+        mockMvc.perform(get("/api/imports/{id}/errors", batchId))
+                .andExpect(jsonPath("$[0].rowNumber").value(4));
+    }
+
+    @Test
+    void weatherReimportUpdatesInsteadOfDuplicating() throws Exception {
+        String[] headers = {"名称*", "类型*(WIND_SHEAR/MICROBURST/JET_STREAM/TURBULENCE/ADVECTION_FOG/RADIATION_FOG/THUNDERSTORM)",
+                "区域*(DMS坐标空格点串)", "下限*(S四位高度)", "上限*(S四位高度)"};
+        byte[] first = xlsx(headers, new String[][]{{"重复导入天气", "TURBULENCE",
+                "300000N1200000E 301000N1200000E 301000N1201000E", "S0100", "S0200"}});
+        byte[] second = xlsx(headers, new String[][]{{"重复导入天气", "TURBULENCE",
+                "300000N1200000E 301000N1200000E 301000N1201000E", "S0300", "S0400"}});
+        mockMvc.perform(multipart("/api/imports/weather").file(new MockMultipartFile("file", "w1.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", first)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.successRows").value(1));
+        mockMvc.perform(multipart("/api/imports/weather").file(new MockMultipartFile("file", "w2.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", second)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.successRows").value(1));
+        MvcResult listed = mockMvc.perform(get("/api/weather").param("size", "200"))
+                .andExpect(status().isOk()).andReturn();
+        java.util.List<java.util.Map<String, Object>> matches = com.jayway.jsonpath.JsonPath.read(
+                listed.getResponse().getContentAsString(), "$.items[?(@.weatherType=='TURBULENCE')]");
+        org.assertj.core.api.Assertions.assertThat(matches).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(matches.get(0).get("lowerLimit")).isEqualTo("S0300");
     }
 
     @Test
@@ -179,6 +214,7 @@ class ExcelApiTest {
                 header.createCell(i).setCellValue(headers[i]);
             }
             for (int r = 0; r < rows.length; r++) {
+                if (rows[r] == null) continue;
                 Row row = sheet.createRow(r + 1);
                 for (int c = 0; c < rows[r].length; c++) {
                     row.createCell(c).setCellValue(rows[r][c]);

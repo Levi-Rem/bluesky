@@ -52,15 +52,15 @@ public interface NavPointMapper {
             + "relevant_flag = #{relevantFlag}, applicable_airports = #{applicableAirports}, "
             + "pilot_flag = #{pilotFlag}, dti_flag = #{dtiFlag}, tfm_flag = #{tfmFlag}, "
             + "status = #{status}, source_reference = #{sourceReference}, "
-            + "updated_by = #{updatedBy}, revision = revision + 1 "
+            + "updated_by = #{updatedBy}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int update(NavPointRow row);
 
-    @Update("UPDATE navigation_point SET deleted = TRUE, revision = revision + 1 "
+    @Update("UPDATE navigation_point SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int markDeleted(@Param("id") String id, @Param("revision") int revision);
 
-    @Update("UPDATE navigation_point SET status = #{status}, revision = revision + 1, updated_by = #{updatedBy} "
+    @Update("UPDATE navigation_point SET status = #{status}, revision = revision + 1, updated_at = CURRENT_TIMESTAMP(3), updated_by = #{updatedBy} "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateStatus(@Param("id") String id, @Param("revision") int revision,
                      @Param("status") String status, @Param("updatedBy") String updatedBy);

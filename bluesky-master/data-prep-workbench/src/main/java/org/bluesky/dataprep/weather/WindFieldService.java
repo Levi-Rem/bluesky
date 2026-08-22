@@ -30,7 +30,7 @@ public class WindFieldService {
 
     public PageResult<WindFieldRow> list(int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safePage = org.bluesky.dataprep.common.Paging.safePage(page, safeSize);
         return new PageResult<>(
                 mapper.selectPage(safePage * safeSize, safeSize),
                 safePage, safeSize, mapper.count());
@@ -65,6 +65,8 @@ public class WindFieldService {
         Guards.requireCodeUnique(mapper.countByCode(body.getCode(), id) > 0, body.getCode());
         body.setId(id);
         body.setSourceType(current.getSourceType());
+        if (body.getStatus() == null) body.setStatus(current.getStatus());
+        if (body.getSourceReference() == null) body.setSourceReference(current.getSourceReference());
         Guards.requireUpdated(mapper.update(body), id);
         if (body.getPoints() != null) {
             replacePoints(id, body.getPoints());
@@ -82,6 +84,17 @@ public class WindFieldService {
         Guards.requireEditableSource(current.getSourceType(), "删除");
         Guards.requireUpdated(mapper.markDeleted(id, revision), id);
         mapper.markPointsDeleted(id);
+        revisionService.increment();
+    }
+
+    @Transactional
+    public void deletePoint(String windFieldId, String pointId, int revision) {
+        WindFieldRow current = get(windFieldId);
+        Guards.requireEditableSource(current.getSourceType(), "删除风场点");
+        Guards.requireUpdated(mapper.touchRevision(windFieldId, revision), windFieldId);
+        if (mapper.markPointDeleted(windFieldId, pointId) == 0) {
+            throw ApiException.notFound("风场点不存在：" + pointId);
+        }
         revisionService.increment();
     }
 
@@ -126,6 +139,11 @@ public class WindFieldService {
             if (!missing.isEmpty()) {
                 throw ApiException.badRequest("风场点缺少必填项：" + String.join("、", missing));
             }
+            if (!Double.isFinite(point.getLongitude()) || !Double.isFinite(point.getLatitude())
+                    || point.getLongitude() < -180 || point.getLongitude() > 180
+                    || point.getLatitude() < -90 || point.getLatitude() > 90) {
+                throw ApiException.badRequest("风场点经纬度不合法");
+            }
             point.setId(UUID.randomUUID().toString());
             point.setWindFieldId(windFieldId);
             point.setOrderNo(order++);
@@ -143,6 +161,10 @@ public class WindFieldService {
     }
 
     private void validate(WindFieldRow row) {
+        if (row.getStatus() != null && !row.getStatus().isEmpty()
+                && !"ENABLED".equals(row.getStatus()) && !"DISABLED".equals(row.getStatus())) {
+            throw ApiException.badRequest("状态仅允许 ENABLED / DISABLED");
+        }
         if (row.getWindFieldType() != null && !TYPES.contains(row.getWindFieldType())) {
             throw ApiException.badRequest("风场类型不合法：" + row.getWindFieldType());
         }

@@ -61,6 +61,13 @@ class AirportApiTest {
                 .andExpect(jsonPath("$.revision").value(1))
                 .andExpect(jsonPath("$.runways.length()").value(2))
                 .andExpect(jsonPath("$.runways[1].designation").value("17L/35R"));
+
+        mockMvc.perform(put("/api/airport/{id}", id)
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"ZBTJ\",\"name\":\"天津滨海更名\",\"icao\":\"ZBTJ\","
+                                + "\"longitude\":117.35,\"latitude\":39.12,\"revision\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runways.length()").value(2));
     }
 
     @Test

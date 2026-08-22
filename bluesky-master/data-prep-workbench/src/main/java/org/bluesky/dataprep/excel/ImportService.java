@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Locale;
 
 /** 导入编排：逐行应用、逐行记错、批次落库。单行失败不影响其余行。 */
 @Service
@@ -40,37 +41,57 @@ public class ImportService {
         String batchId = UUID.randomUUID().toString();
         importMapper.insertBatch(batchId, file.getOriginalFilename(), TEMPLATE_VERSION, entity);
 
+        int[] progress = new int[2];
+        try {
+            return processBatch(entity, schema, rows, batchId, progress);
+        } catch (RuntimeException fatal) {
+            try {
+                importMapper.completeBatch(batchId, rows.size(), progress[0], progress[1], "ABORTED");
+            } catch (RuntimeException ignored) {
+                // 数据库不可用时无法更新批次；保留原始异常给调用方。
+            }
+            throw fatal;
+        }
+    }
+
+    private Map<String, Object> processBatch(String entity, EntitySchema<Object> schema,
+                                             List<Map<String, String>> rows, String batchId,
+                                             int[] progress) {
+
         Map<String, Object> existingByCode = new HashMap<>();
         for (Object item : schema.loadAll()) {
-            existingByCode.put(schema.codeOf(item), item);
+            existingByCode.put(normalizeLookup(entity, schema.codeOf(item)), item);
         }
 
         int success = 0;
         int failed = 0;
         for (int i = 0; i < rows.size(); i++) {
-            int rowNumber = i + 2; // Excel 第1行是表头
             Map<String, String> fields = rows.get(i);
+            int rowNumber = parseRowNumber(fields, i + 2);
             try {
-                String lookupKey = fields.get("code") == null ? "" : fields.get("code");
+                String lookupKey = value(fields, "code");
                 if ("performance".equals(entity)) {
                     lookupKey += "/" + value(fields, "icaoWakeCategory")
                             + "/" + value(fields, "reacatWakeCategory")
                             + "/" + value(fields, "altitudeLayer");
+                } else if ("weather".equals(entity)) {
+                    lookupKey = value(fields, "name") + "/" + value(fields, "weatherType");
                 }
-                Object existing = existingByCode.get(lookupKey);
+                Object existing = existingByCode.get(normalizeLookup(entity, lookupKey));
                 Object saved = schema.getImportApplier().apply(fields, existing);
                 if (saved != null) {
-                    existingByCode.put(schema.codeOf(saved), saved);
+                    existingByCode.put(normalizeLookup(entity, schema.codeOf(saved)), saved);
                 }
                 success++;
+                progress[0] = success;
             } catch (ApiException ex) {
                 failed++;
-                importMapper.insertError(UUID.randomUUID().toString(), batchId,
-                        schema.getSheetName(), rowNumber, "", "HTTP_" + ex.getStatus(), ex.getMessage());
+                progress[1] = failed;
+                recordError(batchId, schema.getSheetName(), rowNumber, "HTTP_" + ex.getStatus(), ex.getMessage());
             } catch (Exception ex) {
                 failed++;
-                importMapper.insertError(UUID.randomUUID().toString(), batchId,
-                        schema.getSheetName(), rowNumber, "", "INTERNAL",
+                progress[1] = failed;
+                recordError(batchId, schema.getSheetName(), rowNumber, "INTERNAL",
                         ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
             }
         }
@@ -95,6 +116,24 @@ public class ImportService {
     private static String value(Map<String, String> fields, String key) {
         String value = fields.get(key);
         return value == null ? "" : value;
+    }
+
+    private void recordError(String batchId, String sheetName, int rowNumber, String code, String message) {
+        String safe = message == null ? "未知错误" : message;
+        if (safe.length() > 512) safe = safe.substring(0, 509) + "...";
+        importMapper.insertError(UUID.randomUUID().toString(), batchId, sheetName, rowNumber, "", code, safe);
+    }
+
+    private static int parseRowNumber(Map<String, String> fields, int fallback) {
+        try {
+            return Integer.parseInt(value(fields, ExcelService.ROW_NUMBER_KEY));
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
+    private static String normalizeLookup(String entity, String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     public List<Map<String, Object>> recentBatches() {

@@ -3,7 +3,6 @@ package org.bluesky.dataprep.airport;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 public class AirportRow {
@@ -23,7 +22,7 @@ public class AirportRow {
     @NotNull(message = "纬度必填")
     private Double latitude;
     private Integer elevationM;
-    private String status = "ENABLED";
+    private String status;
     private String sourceType = "MANUAL";
     private String sourceReference;
     private int revision;
@@ -32,7 +31,7 @@ public class AirportRow {
     private LocalDateTime updatedAt;
     private String updatedBy = "local";
     /** 明细/保存时的跑道子表（replace-all）。 */
-    private List<RunwayRow> runways = new ArrayList<>();
+    private List<RunwayRow> runways;
 
     public String getId() {
         return id;
@@ -47,7 +46,7 @@ public class AirportRow {
     }
 
     public void setCode(String code) {
-        this.code = code;
+        this.code = code == null ? null : code.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     public String getName() {

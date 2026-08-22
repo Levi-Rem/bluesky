@@ -37,14 +37,14 @@ public interface WindFieldMapper {
     @Update("UPDATE wind_field SET code = #{code}, name = #{name}, wind_field_type = #{windFieldType}, "
             + "wind_direction_deg = #{windDirectionDeg}, wind_speed_ms = #{windSpeedMs}, boundary = #{boundary}, "
             + "effective_from = #{effectiveFrom}, effective_to = #{effectiveTo}, status = #{status}, "
-            + "source_reference = #{sourceReference}, updated_by = #{updatedBy}, revision = revision + 1 "
+            + "source_reference = #{sourceReference}, updated_by = #{updatedBy}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int update(WindFieldRow row);
 
-    @Update("UPDATE wind_field SET deleted = TRUE, revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    @Update("UPDATE wind_field SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int markDeleted(@Param("id") String id, @Param("revision") int revision);
 
-    @Update("UPDATE wind_field SET status = #{status}, revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    @Update("UPDATE wind_field SET status = #{status}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateStatus(@Param("id") String id, @Param("revision") int revision, @Param("status") String status);
 
     @Select("SELECT id, wind_field_id, order_no, longitude, latitude, altitude_m, wind_direction_deg, "
@@ -57,6 +57,14 @@ public interface WindFieldMapper {
             + "#{latitude}, #{altitudeM}, #{windDirectionDeg}, #{windSpeedMs})")
     int insertPoint(WindPointRow row);
 
-    @Update("UPDATE wind_field_point SET deleted = TRUE WHERE wind_field_id = #{windFieldId}")
+    @Update("UPDATE wind_field_point SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3) WHERE wind_field_id = #{windFieldId} AND deleted = FALSE")
     int markPointsDeleted(String windFieldId);
+
+    @Update("UPDATE wind_field SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP(3) "
+            + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    int touchRevision(@Param("id") String id, @Param("revision") int revision);
+
+    @Update("UPDATE wind_field_point SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3) "
+            + "WHERE id = #{pointId} AND wind_field_id = #{windFieldId} AND deleted = FALSE")
+    int markPointDeleted(@Param("windFieldId") String windFieldId, @Param("pointId") String pointId);
 }

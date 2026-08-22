@@ -1,6 +1,5 @@
 package org.bluesky.dataprep.physicalsector;
 
-import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -43,14 +42,15 @@ public interface PhysicalSectorMapper {
     @Update("UPDATE physical_sector SET name = #{name}, sector_type = #{sectorType}, "
             + "composition_mode = #{compositionMode}, upper_limit = #{upperLimit}, lower_limit = #{lowerLimit}, "
             + "source_subtype = #{sourceSubtype}, source_flag = #{sourceFlag}, source_reference = #{sourceReference}, "
-            + "updated_by = #{updatedBy}, revision = revision + 1 "
+            + "updated_by = #{updatedBy}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int update(PhysicalSectorRow row);
 
-    @Delete("DELETE FROM physical_sector_point WHERE physical_sector_id = #{sectorId}")
-    int deletePoints(String sectorId);
+    @Update("UPDATE physical_sector_point SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3) "
+            + "WHERE physical_sector_id = #{sectorId} AND deleted = FALSE")
+    int markPointsDeleted(String sectorId);
 
-    @Update("UPDATE physical_sector SET deleted = TRUE, revision = revision + 1 "
+    @Update("UPDATE physical_sector SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int markDeleted(@Param("id") String id, @Param("revision") int revision);
 }

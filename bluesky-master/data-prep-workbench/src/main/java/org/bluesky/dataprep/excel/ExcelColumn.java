@@ -28,4 +28,8 @@ public class ExcelColumn {
     public int getWidth() {
         return width;
     }
+
+    public boolean isRequired() {
+        return header.contains("*");
+    }
 }

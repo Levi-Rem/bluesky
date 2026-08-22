@@ -26,9 +26,9 @@
       <div class="command-actions">
         <span v-if="pending.length" class="pending-badge">待提交 {{ pending.length }}</span>
         <button class="command-button" title="缩放到全部可见数据" @click="fitVisibleData">全图</button>
-        <button class="command-button" :disabled="!dirty" @click="discardChanges">撤销</button>
-        <button class="save-button" :disabled="!dirty || Boolean(draftValidationMessage)" @click="save">保存修改</button>
-        <button class="map-close" aria-label="关闭" @click="requestClose">×</button>
+        <button class="command-button" :disabled="!dirty || saving" @click="discardChanges">撤销</button>
+        <button class="save-button" :disabled="!dirty || Boolean(draftValidationMessage) || saving" @click="save">{{ saving ? '保存中…' : '保存修改' }}</button>
+        <button class="map-close" :disabled="saving" aria-label="关闭" @click="requestClose">×</button>
       </div>
     </header>
 
@@ -165,10 +165,10 @@
       </div>
 
       <div class="property-actions">
-        <button class="danger-button" :disabled="!selection || !editable" @click="removeSelection">删除对象</button>
+        <button class="danger-button" :disabled="!selection || !editable || saving" @click="removeSelection">删除对象</button>
         <span></span>
-        <button class="secondary-button" :disabled="!dirty" @click="discardChanges">撤销修改</button>
-        <button class="primary-button" :disabled="!dirty || Boolean(draftValidationMessage)" @click="save">保存修改</button>
+        <button class="secondary-button" :disabled="!dirty || saving" @click="discardChanges">撤销修改</button>
+        <button class="primary-button" :disabled="!dirty || Boolean(draftValidationMessage) || saving" @click="save">{{ saving ? '保存中…' : '保存修改' }}</button>
       </div>
     </aside>
 
@@ -199,7 +199,7 @@ import Select from 'ol/interaction/Select';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { fromLonLat, toLonLat } from 'ol/proj';
-import { mapLayers, saveMapFeatures, type MapLayerData, type MapOperation } from '../api/client';
+import { ApiError, mapLayers, saveMapFeatures, type MapLayerData, type MapOperation } from '../api/client';
 import { useHealthStore } from '../stores/health';
 import { decimalCoordinateToDms, parseDmsCoordinate } from '../utils/coordinates';
 import 'ol/ol.css';
@@ -241,6 +241,7 @@ interface MapSelection {
 const selection = ref<MapSelection | null>(null);
 const dirty = ref(false);
 const propertyDirty = ref(false);
+const saving = ref(false);
 
 const tools = [
   { id: 'select', label: '选择', icon: '⌖', hint: '点击地图对象查看和编辑属性' },
@@ -318,7 +319,22 @@ function featureStyle(category: string, code: string): Style {
 }
 
 async function loadLayers() {
-  const data = await mapLayers();
+  let data: { layers: MapLayerData[] };
+  try {
+    data = await mapLayers();
+  } catch (ex) {
+    message.value = ex instanceof Error ? `地图数据加载失败：${ex.message}` : '地图数据加载失败';
+    return false;
+  }
+  const revisions = new Map<string, number>();
+  for (const layer of data.layers) {
+    for (const item of layer.features) revisions.set(item.entityId, item.revision);
+  }
+  for (const operation of pending) {
+    if (operation.operationType !== 'CREATE' && revisions.has(operation.entityId)) {
+      operation.revision = revisions.get(operation.entityId) ?? operation.revision;
+    }
+  }
   selectInteraction?.getFeatures().clear();
   layerMap.forEach(layer => map?.removeLayer(layer));
   layerMap.clear();
@@ -359,6 +375,7 @@ async function loadLayers() {
     hasFittedInitialData = true;
     window.requestAnimationFrame(() => fitVisibleData());
   }
+  return true;
 }
 
 function toggleLayer(category: string) {
@@ -598,6 +615,12 @@ function useTool(tool: string) {
       message.value = '请先选择一个已有点、航路或区域对象';
       return;
     }
+    if (selection.value.entityType === 'airway'
+        && !window.confirm('编辑航路顶点会移动其引用的导航点，并可能影响其他航路。是否继续？')) {
+      useTool('select');
+      message.value = '已取消航路顶点编辑';
+      return;
+    }
     const feature = featureIndex.get(selection.value.featureId);
     if (!feature) {
       useTool('select');
@@ -767,6 +790,7 @@ function removeSelection() {
     return;
   }
   const { featureId, entityId, entityType, revision } = selection.value;
+  if (!window.confirm(entityType === 'wind-field' ? '确认删除该风场点？' : '确认删除该地图对象？')) return;
   for (let index = pending.length - 1; index >= 0; index -= 1) {
     if (pending[index].entityId === entityId) {
       pending.splice(index, 1);
@@ -788,7 +812,10 @@ function removeSelection() {
   }
   pending.push({ operationType: 'DELETE', entityType, entityId, featureId, revision });
   for (const candidate of featureIndex.values()) {
-    if (String(candidate.get('entityId') ?? '') === entityId) candidate.setStyle(new Style({}));
+    const sameTarget = entityType === 'wind-field'
+      ? String(candidate.get('featureId') ?? '') === featureId
+      : String(candidate.get('entityId') ?? '') === entityId;
+    if (sameTarget) candidate.setStyle(new Style({}));
   }
   selectInteraction?.getFeatures().clear();
   selection.value = null;
@@ -798,6 +825,7 @@ function removeSelection() {
 }
 
 async function save() {
+  if (saving.value) return;
   if (draftValidationMessage.value) {
     message.value = draftValidationMessage.value;
     return;
@@ -831,6 +859,7 @@ async function save() {
     message.value = '没有待保存的修改';
     return;
   }
+  saving.value = true;
   try {
     const result = await saveMapFeatures(pending);
     pending.length = 0;
@@ -838,10 +867,17 @@ async function save() {
     propertyDirty.value = false;
     selection.value = null;
     healthStore.bumpRevision();
-    await loadLayers();
-    message.value = `已保存 ${result.saved} 项修改`;
+    const loaded = await loadLayers();
+    if (loaded) message.value = `已保存 ${result.saved} 项修改`;
   } catch (ex) {
-    message.value = ex instanceof Error ? ex.message : '保存失败';
+    if (ex instanceof ApiError && ex.status === 409) {
+      await loadLayers();
+      message.value = '数据已被其他操作修改；待提交内容已更新到最新修订，请检查后再次保存';
+    } else {
+      message.value = ex instanceof Error ? ex.message : '保存失败';
+    }
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -860,6 +896,7 @@ async function discardChanges() {
 }
 
 function requestClose() {
+  if (saving.value) return;
   if (dirty.value && !window.confirm('仍有未保存修改，确定关闭并放弃吗？')) return;
   emit('close');
 }
@@ -876,6 +913,11 @@ function handleMapContextMenu(event: MouseEvent) {
     : '绘制已结束，未新增对象';
 }
 
+function handlePointerMove(event: any) {
+  const [longitude, latitude] = toLonLat(event.coordinate);
+  mouseCoordinate.value = decimalCoordinateToDms(latitude, longitude);
+}
+
 onMounted(async () => {
   map = new MapLib({
     target: canvasRef.value,
@@ -885,10 +927,7 @@ onMounted(async () => {
       zoom: 7
     })
   });
-  map.on('pointermove', event => {
-    const [longitude, latitude] = toLonLat(event.coordinate);
-    mouseCoordinate.value = decimalCoordinateToDms(latitude, longitude);
-  });
+  map.on('pointermove', handlePointerMove);
   selectInteraction = new Select();
   selectInteraction.on('select', event => {
     const feature = event.selected[0];
@@ -917,7 +956,16 @@ onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
   clearInteractions();
+  map?.un('pointermove', handlePointerMove);
+  layerMap.forEach(layer => {
+    layer.getSource()?.clear();
+    layer.getSource()?.dispose();
+    layer.dispose();
+  });
+  layerMap.clear();
+  featureIndex.clear();
   map?.setTarget(undefined);
+  map?.dispose();
   map = null;
 });
 </script>

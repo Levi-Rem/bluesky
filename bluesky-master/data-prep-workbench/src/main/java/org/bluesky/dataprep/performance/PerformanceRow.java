@@ -16,7 +16,7 @@ public class PerformanceRow {
     public String reacatWakeCategory;
     public Integer maximumTakeoffWeightKg;
     public String performanceCategory;
-    public String status = "ENABLED";
+    public String status;
 
     public Integer sequenceNo;
     @NotBlank(message = "高度层必填") public String altitudeLayer;
@@ -83,7 +83,7 @@ public class PerformanceRow {
     public int getRevision() { return revision; }
 
     public void setId(String value) { id = value; }
-    public void setCode(String value) { code = value; }
+    public void setCode(String value) { code = value == null ? null : value.trim().toUpperCase(java.util.Locale.ROOT); }
     public void setName(String value) { name = value; }
     public void setManufacturer(String value) { manufacturer = value; }
     public void setModelName(String value) { modelName = value; }

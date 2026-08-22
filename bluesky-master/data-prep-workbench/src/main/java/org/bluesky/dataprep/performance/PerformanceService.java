@@ -22,7 +22,7 @@ public class PerformanceService {
 
     public PageResult<PerformanceRow> list(int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safePage = org.bluesky.dataprep.common.Paging.safePage(page, safeSize);
         return new PageResult<>(mapper.selectPage(safePage * safeSize, safeSize),
                 safePage, safeSize, mapper.count());
     }
@@ -53,7 +53,6 @@ public class PerformanceService {
         mapper.insertPerformance(row);
         if (!newAircraft) {
             mapper.updateAircraft(row);
-            mapper.synchronizeCommonFields(row);
         }
         revisionService.increment();
         return mapper.findById(row.id);
@@ -62,6 +61,7 @@ public class PerformanceService {
     @Transactional
     public PerformanceRow update(String id, PerformanceRow body) {
         PerformanceRow current = get(id);
+        if (body.status == null || body.status.trim().isEmpty()) body.status = current.status;
         normalize(body);
         body.id = id;
         body.aircraftId = current.aircraftId;
@@ -75,7 +75,6 @@ public class PerformanceService {
         }
         Guards.requireUpdated(mapper.updateLayer(body), id);
         mapper.updateAircraft(body);
-        mapper.synchronizeCommonFields(body);
         revisionService.increment();
         return mapper.findById(id);
     }
@@ -93,9 +92,8 @@ public class PerformanceService {
             throw ApiException.badRequest("状态仅允许 ENABLED / DISABLED");
         }
         PerformanceRow row = get(id);
-        if (row.revision != revision) throw ApiException.conflict("记录已被其他操作修改，请刷新后重试");
-        row.status = status;
-        mapper.updateAircraft(row);
+        Guards.requireUpdated(mapper.touchLayerRevision(id, revision), id);
+        mapper.updateAircraftStatus(row.aircraftId, status);
         revisionService.increment();
         return mapper.findById(id);
     }
@@ -108,6 +106,16 @@ public class PerformanceService {
         row.reacatWakeCategory = upper(row.reacatWakeCategory);
         row.performanceCategory = upper(row.performanceCategory);
         row.status = row.status == null || row.status.trim().isEmpty() ? "ENABLED" : row.status;
+        if (!"ENABLED".equals(row.status) && !"DISABLED".equals(row.status)) {
+            throw ApiException.badRequest("状态仅允许 ENABLED / DISABLED");
+        }
+        if (!row.altitudeLayer.matches("[A-Z][A-Z0-9]{0,15}")) {
+            throw ApiException.badRequest("高度层格式不正确，应为 F100、S0100 等不超过 16 位的编码");
+        }
+        requireMaxLength(row.cruiseSpeed, "巡航速度", 64);
+        requireMaxLength(row.stallSpeed, "失速速度", 64);
+        requireMaxLength(row.climbSpeed, "爬升速度", 64);
+        requireMaxLength(row.descentSpeed, "下降速度", 64);
         row.createdBy = row.createdBy == null ? "local" : row.createdBy;
         row.updatedBy = row.updatedBy == null ? "local" : row.updatedBy;
     }
@@ -119,5 +127,11 @@ public class PerformanceService {
 
     private static String upper(String value) {
         return value == null || value.trim().isEmpty() ? null : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static void requireMaxLength(String value, String label, int maximum) {
+        if (value != null && value.length() > maximum) {
+            throw ApiException.badRequest(label + "长度不能超过 " + maximum + " 个字符");
+        }
     }
 }

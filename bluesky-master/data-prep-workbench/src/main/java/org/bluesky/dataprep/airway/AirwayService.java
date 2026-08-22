@@ -30,7 +30,7 @@ public class AirwayService {
 
     public PageResult<AirwayRow> list(int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safePage = org.bluesky.dataprep.common.Paging.safePage(page, safeSize);
         List<AirwayRow> rows = mapper.selectPage(safePage * safeSize, safeSize);
         for (AirwayRow row : rows) {
             row.setSegments(mapper.findSegments(row.getId()));
@@ -68,6 +68,8 @@ public class AirwayService {
         Guards.requireCodeUnique(mapper.countByCode(body.getCode(), id) > 0, body.getCode());
         body.setId(id);
         body.setSourceType(current.getSourceType());
+        if (body.getStatus() == null) body.setStatus(current.getStatus());
+        if (body.getSourceReference() == null) body.setSourceReference(current.getSourceReference());
         Guards.requireUpdated(mapper.update(body), id);
         if (body.getSegments() != null) {
             replaceSegments(id, body.getSegments());
@@ -152,6 +154,7 @@ public class AirwayService {
     }
 
     private void validate(AirwayRow row) {
+        validateStatus(row.getStatus());
         if (row.getRouteType() != null
                 && !"CODED_ROUTE".equals(row.getRouteType())
                 && !"SID".equals(row.getRouteType())
@@ -162,6 +165,12 @@ public class AirwayService {
                 && !"ONE_WAY".equals(row.getAirwayDirection())
                 && !"TWO_WAY".equals(row.getAirwayDirection())) {
             throw ApiException.badRequest("航路方向仅允许 ONE_WAY / TWO_WAY");
+        }
+    }
+
+    private static void validateStatus(String status) {
+        if (status != null && !status.isEmpty() && !"ENABLED".equals(status) && !"DISABLED".equals(status)) {
+            throw ApiException.badRequest("状态仅允许 ENABLED / DISABLED");
         }
     }
 

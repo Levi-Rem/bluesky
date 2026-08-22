@@ -3,6 +3,7 @@ package org.bluesky.dataprep.weather;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.bluesky.dataprep.common.ApiException;
 import org.bluesky.dataprep.common.Guards;
+import org.bluesky.dataprep.common.GeoJsonValidator;
 import org.bluesky.dataprep.common.PageResult;
 import org.bluesky.dataprep.common.RevisionService;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,7 @@ public class WeatherAreaService {
 
     public PageResult<WeatherAreaRow> list(int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safePage = org.bluesky.dataprep.common.Paging.safePage(page, safeSize);
         return new PageResult<>(mapper.selectPage(safePage * safeSize, safeSize),
                 safePage, safeSize, mapper.count());
     }
@@ -72,6 +73,7 @@ public class WeatherAreaService {
         if (empty(body.getCode())) body.setCode(current.getCode());
         body.setSourceType(current.getSourceType());
         body.setSourceReference(current.getSourceReference());
+        if (empty(body.getStatus())) body.setStatus(current.getStatus());
         Guards.requireUpdated(mapper.update(body), id);
         revisionService.increment();
         return get(id);
@@ -101,18 +103,7 @@ public class WeatherAreaService {
         if (empty(area)) throw ApiException.badRequest("区域必填");
         String value = area.trim();
         if (value.startsWith("{")) {
-            try {
-                Map<String, Object> geometry = objectMapper.readValue(value, Map.class);
-                String type = String.valueOf(geometry.get("type"));
-                if (!"Polygon".equals(type) && !"MultiPolygon".equals(type)) {
-                    throw ApiException.badRequest("气象区域必须是 Polygon 或 MultiPolygon");
-                }
-                return objectMapper.writeValueAsString(geometry);
-            } catch (ApiException ex) {
-                throw ex;
-            } catch (Exception ex) {
-                throw ApiException.badRequest("气象区域 GeoJSON 不合法：" + ex.getMessage());
-            }
+            return GeoJsonValidator.validatePolygonGeometry(value, "气象区域");
         }
 
         List<List<Double>> ring = new ArrayList<>();

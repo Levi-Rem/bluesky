@@ -13,6 +13,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -91,6 +92,37 @@ class RadarApiTest {
                                 + "\"boundSiteIds\":[\"" + siteId + "\"]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.boundSiteIds[0]").value(siteId));
+    }
+
+    @Test
+    void cat048ChannelCanBeEditedWithoutRecreatingItsBinding() throws Exception {
+        String siteId = "seed-site-sha01";
+        MvcResult created = mockMvc.perform(post("/api/asterix-channel")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"CH-048-EDIT\",\"name\":\"待编辑通道\",\"category\":\"CAT048\","
+                                + "\"boundSiteIds\":[\"" + siteId + "\"]}"))
+                .andExpect(status().isOk()).andReturn();
+        String id = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        int revision = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.revision");
+
+        mockMvc.perform(put("/api/asterix-channel/{id}", id)
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"CH-048-EDIT\",\"name\":\"已编辑通道\",\"category\":\"CAT048\","
+                                + "\"revision\":" + revision + ",\"boundSiteIds\":[\"" + siteId + "\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("已编辑通道"))
+                .andExpect(jsonPath("$.boundSiteIds.length()").value(1));
+    }
+
+    @Test
+    void cat048BoundSiteCannotBeDisabled() throws Exception {
+        String siteId = "seed-site-sha01";
+        MvcResult site = mockMvc.perform(get("/api/radar-site/{id}", siteId)).andReturn();
+        int revision = com.jayway.jsonpath.JsonPath.read(site.getResponse().getContentAsString(), "$.revision");
+        mockMvc.perform(post("/api/radar-site/{id}/status", siteId)
+                        .param("status", "DISABLED").param("revision", String.valueOf(revision)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("CAT048")));
     }
 
     @Test

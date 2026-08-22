@@ -38,13 +38,13 @@ public interface AirspaceMapper {
             + "boundary = #{boundary}, lower_value = #{lowerValue}, lower_reference = #{lowerReference}, "
             + "upper_value = #{upperValue}, upper_reference = #{upperReference}, valid_from = #{validFrom}, "
             + "valid_to = #{validTo}, status = #{status}, source_reference = #{sourceReference}, "
-            + "updated_by = #{updatedBy}, revision = revision + 1 "
+            + "updated_by = #{updatedBy}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int update(AirspaceRow row);
 
-    @Update("UPDATE airspace SET deleted = TRUE, revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    @Update("UPDATE airspace SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int markDeleted(@Param("id") String id, @Param("revision") int revision);
 
-    @Update("UPDATE airspace SET status = #{status}, revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    @Update("UPDATE airspace SET status = #{status}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateStatus(@Param("id") String id, @Param("revision") int revision, @Param("status") String status);
 }

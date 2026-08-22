@@ -47,12 +47,15 @@ export function list<T>(entity: string, page = 0, size = 20): Promise<PageResult
 export async function listAll<T>(entity: string, size = 200): Promise<T[]> {
   const items: T[] = [];
   let page = 0;
+  const maximumPages = 10000;
   while (true) {
+    if (page >= maximumPages) throw new ApiError(500, '分页数据异常：超过最大页数');
     const result = await list<T>(entity, page, size);
     items.push(...result.items);
     if (items.length >= result.total || result.items.length < result.size) {
       return items;
     }
+    if (result.items.length === 0) throw new ApiError(500, '分页数据异常：服务返回空页但总数未结束');
     page += 1;
   }
 }
@@ -164,71 +167,4 @@ export interface ImportErrorRow {
 
 export function importErrors(batchId: string): Promise<ImportErrorRow[]> {
   return request<ImportErrorRow[]>(`/api/imports/${batchId}/errors`);
-}
-
-export interface AsfImportResult {
-  navigationPointCount: number;
-  airwayCount: number;
-  airwaySegmentCount: number;
-  codedRouteCount: number;
-  sidCount: number;
-  starCount: number;
-  duplicateDefinitionCount: number;
-  duplicateDefinitions: string[];
-}
-
-export async function replaceAirspaceFromAsf(
-  characteristicPoints: File,
-  routes: File
-): Promise<AsfImportResult> {
-  const form = new FormData();
-  form.append('characteristicPoints', characteristicPoints);
-  form.append('routes', routes);
-  form.append('confirmReplace', 'true');
-  const response = await fetch('/api/asf/replace-airspace', { method: 'POST', body: form });
-  const body = await response.json();
-  if (!response.ok) {
-    throw new ApiError(response.status, (body as ApiErrorBody).message || 'ASF 导入失败');
-  }
-  return body as AsfImportResult;
-}
-
-export interface PhysicalSectorImportResult {
-  sourceSectorCount: number;
-  sourceFirCount: number;
-  regionCount: number;
-  boundaryPointCount: number;
-}
-
-export async function replacePhysicalSectorsFromAsf(file: File): Promise<PhysicalSectorImportResult> {
-  const form = new FormData();
-  form.append('fdpVolumes', file);
-  form.append('confirmReplace', 'true');
-  const response = await fetch('/api/asf/replace-physical-sectors', { method: 'POST', body: form });
-  const body = await response.json();
-  if (!response.ok) {
-    throw new ApiError(response.status, (body as ApiErrorBody).message || '物理扇区 ASF 导入失败');
-  }
-  return body as PhysicalSectorImportResult;
-}
-
-export interface AircraftPerformanceImportResult {
-  performanceGroupCount: number;
-  aircraftTypeCount: number;
-  performanceRowCount: number;
-  warnings: string[];
-}
-
-export async function replaceAircraftPerformancesFromAsf(
-  file: File
-): Promise<AircraftPerformanceImportResult> {
-  const form = new FormData();
-  form.append('aircraftPerformances', file);
-  form.append('confirmReplace', 'true');
-  const response = await fetch('/api/asf/replace-aircraft-performances', { method: 'POST', body: form });
-  const body = await response.json();
-  if (!response.ok) {
-    throw new ApiError(response.status, (body as ApiErrorBody).message || '飞机性能 ASF 导入失败');
-  }
-  return body as AircraftPerformanceImportResult;
 }

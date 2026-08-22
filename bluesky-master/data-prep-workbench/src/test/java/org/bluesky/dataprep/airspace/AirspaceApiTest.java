@@ -56,6 +56,16 @@ class AirspaceApiTest {
     }
 
     @Test
+    void invalidGeoJsonRejected() throws Exception {
+        mockMvc.perform(post("/api/airspace")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"T-INVALID-GEO\",\"name\":\"坏边界\",\"airspaceType\":\"TMA\","
+                                + "\"boundary\":\"{\\\"a\\\":1}\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Polygon")));
+    }
+
+    @Test
     void manualStatusToggleAllowed() throws Exception {
         MvcResult list = mockMvc.perform(get("/api/airspace")).andReturn();
         String r210Id = null;

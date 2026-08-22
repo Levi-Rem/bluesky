@@ -20,7 +20,11 @@
     <properties>
         <java.version>8</java.version>
         <mybatis.version>2.3.2</mybatis.version>
-        <poi.version>5.2.5</poi.version>
+        <spring-framework.version>5.3.39</spring-framework.version>
+        <tomcat.version>9.0.120</tomcat.version>
+        <!-- Keep the Java-8-compatible 2.1 line: 2.2 cannot open existing MVStore format-2 databases. -->
+        <h2.version>2.1.214</h2.version>
+        <poi.version>5.5.1</poi.version>
     </properties>
 
     <dependencies>

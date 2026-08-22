@@ -56,7 +56,6 @@
         <div class="menu" v-show="openMenu === 'editMenu'">
           <button @click="editAction('new')">新建</button>
           <button @click="editAction('import')">导入 Excel</button>
-          <button @click="editAction('asf')">导入运行系统 ASF</button>
           <button @click="editAction('export')">导出 Excel</button>
           <button @click="editAction('map')">地图编辑</button>
         </div>
@@ -94,13 +93,6 @@
       @toast="toast"
     />
 
-    <AsfImportWizard
-      v-if="asfOpen"
-      @close="asfOpen = false"
-      @imported="onSaved"
-      @toast="toast"
-    />
-
     <div class="toast" :class="{ error: toastTone === 'error' }" v-show="toastText">
       {{ toastText }}
     </div>
@@ -113,7 +105,6 @@ import DataTable from './components/DataTable.vue';
 import MapEditor from './components/MapEditor.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import ImportWizard from './components/ImportWizard.vue';
-import AsfImportWizard from './components/AsfImportWizard.vue';
 import {
   createEntityOf,
   drawerConfigs,
@@ -133,7 +124,6 @@ const openMenu = ref('');
 const tableRef = ref<InstanceType<typeof DataTable>>();
 const mapOpen = ref(false);
 const wizardOpen = ref(false);
-const asfOpen = ref(false);
 
 interface DrawerState {
   config: DrawerConfig;
@@ -187,10 +177,6 @@ function editAction(action: string) {
   }
   if (action === 'import') {
     wizardOpen.value = true;
-    return;
-  }
-  if (action === 'asf') {
-    asfOpen.value = true;
     return;
   }
   const entity = createEntityOf(currentPage.value);

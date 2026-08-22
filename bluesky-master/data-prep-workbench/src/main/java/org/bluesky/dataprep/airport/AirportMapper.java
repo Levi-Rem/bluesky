@@ -37,14 +37,14 @@ public interface AirportMapper {
     @Update("UPDATE airport SET code = #{code}, name = #{name}, icao = #{icao}, iata = #{iata}, "
             + "country = #{country}, airport_grade = #{airportGrade}, max_runway_length_m = #{maxRunwayLengthM}, "
             + "longitude = #{longitude}, latitude = #{latitude}, elevation_m = #{elevationM}, status = #{status}, "
-            + "source_reference = #{sourceReference}, updated_by = #{updatedBy}, revision = revision + 1 "
+            + "source_reference = #{sourceReference}, updated_by = #{updatedBy}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int update(AirportRow row);
 
-    @Update("UPDATE airport SET deleted = TRUE, revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    @Update("UPDATE airport SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int markDeleted(@Param("id") String id, @Param("revision") int revision);
 
-    @Update("UPDATE airport SET status = #{status}, revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    @Update("UPDATE airport SET status = #{status}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateStatus(@Param("id") String id, @Param("revision") int revision, @Param("status") String status);
 
     // ---- 跑道子表 ----
@@ -61,6 +61,6 @@ public interface AirportMapper {
             + "#{runwayStatus}, #{orderNo})")
     int insertRunway(RunwayRow row);
 
-    @Update("UPDATE runway SET deleted = TRUE WHERE airport_id = #{airportId}")
+    @Update("UPDATE runway SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3) WHERE airport_id = #{airportId} AND deleted = FALSE")
     int markRunwaysDeleted(String airportId);
 }

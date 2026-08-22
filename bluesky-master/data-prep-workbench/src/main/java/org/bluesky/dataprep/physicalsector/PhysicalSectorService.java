@@ -39,7 +39,7 @@ public class PhysicalSectorService {
 
     public PageResult<PhysicalSectorRow> list(int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safePage = org.bluesky.dataprep.common.Paging.safePage(page, safeSize);
         List<PhysicalSectorRow> rows = mapper.selectPage(safePage * safeSize, safeSize);
         for (PhysicalSectorRow row : rows) {
             row.setPoints(mapper.selectPoints(row.getId()));
@@ -78,7 +78,7 @@ public class PhysicalSectorService {
         if (body.getSourceFlag() == null) body.setSourceFlag(current.getSourceFlag());
         if (body.getSourceReference() == null) body.setSourceReference(current.getSourceReference());
         Guards.requireUpdated(mapper.update(body), id);
-        mapper.deletePoints(id);
+        mapper.markPointsDeleted(id);
         replacePoints(body);
         revisionService.increment();
         return get(id);
@@ -89,6 +89,7 @@ public class PhysicalSectorService {
         PhysicalSectorRow current = get(id);
         Guards.requireEditableSource(current.getSourceType(), "删除");
         Guards.requireUpdated(mapper.markDeleted(id, revision), id);
+        mapper.markPointsDeleted(id);
         revisionService.increment();
     }
 
@@ -142,6 +143,7 @@ public class PhysicalSectorService {
             point.setLongitude(coordinate[1]);
         }
         if (point.getLatitude() == null || point.getLongitude() == null
+                || !Double.isFinite(point.getLatitude()) || !Double.isFinite(point.getLongitude())
                 || point.getLatitude() < -90 || point.getLatitude() > 90
                 || point.getLongitude() < -180 || point.getLongitude() > 180) {
             throw ApiException.badRequest("物理扇区经纬度不合法");
@@ -178,8 +180,14 @@ public class PhysicalSectorService {
             if (latMin > 59 || latSec > 59 || lonMin > 59 || lonSec > 59) {
                 throw ApiException.badRequest("坐标中的分、秒必须小于 60：" + value);
             }
-            double lat = Integer.parseInt(dms.group(1)) + latMin / 60d + latSec / 3600d;
-            double lon = Integer.parseInt(dms.group(5)) + lonMin / 60d + lonSec / 3600d;
+            int latDeg = Integer.parseInt(dms.group(1));
+            int lonDeg = Integer.parseInt(dms.group(5));
+            if (latDeg > 90 || lonDeg > 180 || (latDeg == 90 && (latMin > 0 || latSec > 0))
+                    || (lonDeg == 180 && (lonMin > 0 || lonSec > 0))) {
+                throw ApiException.badRequest("坐标超出范围：" + value);
+            }
+            double lat = latDeg + latMin / 60d + latSec / 3600d;
+            double lon = lonDeg + lonMin / 60d + lonSec / 3600d;
             if ("S".equalsIgnoreCase(dms.group(4))) lat = -lat;
             if ("W".equalsIgnoreCase(dms.group(8))) lon = -lon;
             return new double[]{lat, lon};

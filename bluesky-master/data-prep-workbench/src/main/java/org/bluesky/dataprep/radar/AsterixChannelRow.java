@@ -1,7 +1,6 @@
 package org.bluesky.dataprep.radar;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 public class AsterixChannelRow {
@@ -20,7 +19,7 @@ public class AsterixChannelRow {
     private Integer maximumDatagramBytes = 1400;
     private Boolean channelEnabled = Boolean.TRUE;
     private Integer configRevision = 0;
-    private String status = "ENABLED";
+    private String status;
     private String sourceType = "MANUAL";
     private String sourceReference;
     private int revision;
@@ -29,7 +28,7 @@ public class AsterixChannelRow {
     private LocalDateTime updatedAt;
     private String updatedBy = "local";
     /** 保存时以站点 id 列表提交绑定（replace-all）；详情返回绑定站点 id。 */
-    private List<String> boundSiteIds = new ArrayList<>();
+    private List<String> boundSiteIds;
 
     public String getId() {
         return id;
@@ -44,7 +43,7 @@ public class AsterixChannelRow {
     }
 
     public void setCode(String code) {
-        this.code = code;
+        this.code = code == null ? null : code.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     public String getName() {

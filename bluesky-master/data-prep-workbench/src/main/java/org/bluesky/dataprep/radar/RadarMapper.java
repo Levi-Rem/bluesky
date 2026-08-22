@@ -42,15 +42,15 @@ public interface RadarMapper {
     @Update("UPDATE logical_radar_site SET code = #{code}, name = #{name}, sac = #{sac}, sic = #{sic}, "
             + "longitude = #{longitude}, latitude = #{latitude}, altitude_m = #{altitudeM}, "
             + "maximum_range_nm = #{maximumRangeNm}, status = #{status}, source_reference = #{sourceReference}, "
-            + "updated_by = #{updatedBy}, revision = revision + 1 "
+            + "updated_by = #{updatedBy}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateSite(RadarSiteRow row);
 
-    @Update("UPDATE logical_radar_site SET deleted = TRUE, revision = revision + 1 "
+    @Update("UPDATE logical_radar_site SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int markSiteDeleted(@Param("id") String id, @Param("revision") int revision);
 
-    @Update("UPDATE logical_radar_site SET status = #{status}, revision = revision + 1 "
+    @Update("UPDATE logical_radar_site SET status = #{status}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateSiteStatus(@Param("id") String id, @Param("revision") int revision, @Param("status") String status);
 
@@ -83,15 +83,15 @@ public interface RadarMapper {
             + "network_interface = #{networkInterface}, ttl = #{ttl}, "
             + "maximum_datagram_bytes = #{maximumDatagramBytes}, channel_enabled = #{channelEnabled}, "
             + "config_revision = config_revision + 1, status = #{status}, "
-            + "source_reference = #{sourceReference}, updated_by = #{updatedBy}, revision = revision + 1 "
+            + "source_reference = #{sourceReference}, updated_by = #{updatedBy}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateChannel(AsterixChannelRow row);
 
-    @Update("UPDATE asterix_channel SET deleted = TRUE, revision = revision + 1 "
+    @Update("UPDATE asterix_channel SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int markChannelDeleted(@Param("id") String id, @Param("revision") int revision);
 
-    @Update("UPDATE asterix_channel SET status = #{status}, revision = revision + 1 "
+    @Update("UPDATE asterix_channel SET status = #{status}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateChannelStatus(@Param("id") String id, @Param("revision") int revision, @Param("status") String status);
 
@@ -120,9 +120,16 @@ public interface RadarMapper {
     int insertBinding(@Param("id") String id, @Param("siteId") String siteId,
                       @Param("channelId") String channelId, @Param("displayOrder") int displayOrder);
 
-    @Update("UPDATE radar_channel_binding SET deleted = TRUE WHERE channel_id = #{channelId}")
+    @Update("UPDATE radar_channel_binding SET deleted = FALSE, enabled = TRUE, display_order = #{displayOrder}, "
+            + "updated_at = CURRENT_TIMESTAMP(3) WHERE radar_site_id = #{siteId} AND channel_id = #{channelId}")
+    int restoreBinding(@Param("siteId") String siteId, @Param("channelId") String channelId,
+                       @Param("displayOrder") int displayOrder);
+
+    @Update("UPDATE radar_channel_binding SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3) "
+            + "WHERE channel_id = #{channelId} AND deleted = FALSE")
     int markBindingsDeleted(String channelId);
 
-    @Update("UPDATE radar_channel_binding SET deleted = TRUE WHERE radar_site_id = #{siteId}")
+    @Update("UPDATE radar_channel_binding SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3) "
+            + "WHERE radar_site_id = #{siteId} AND deleted = FALSE")
     int markSiteBindingsDeleted(String siteId);
 }

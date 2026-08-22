@@ -32,7 +32,7 @@ public class NavPointRow {
     private String pilotFlag;
     private String dtiFlag;
     private String tfmFlag;
-    private String status = "ENABLED";
+    private String status;
     private String sourceType = "MANUAL";
     private String sourceReference;
     private int revision;
@@ -55,7 +55,7 @@ public class NavPointRow {
     }
 
     public void setCode(String code) {
-        this.code = code;
+        this.code = normalizeCode(code);
     }
 
     public String getName() {
@@ -120,6 +120,10 @@ public class NavPointRow {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    private static String normalizeCode(String value) {
+        return value == null ? null : value.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     public String getSourcePointType() { return sourcePointType; }

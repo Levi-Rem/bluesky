@@ -6,7 +6,7 @@ spring:
   application:
     name: bluesky-data-prep-workbench
   datasource:
-    url: jdbc:h2:file:./data/prep;MODE=MySQL;DB_CLOSE_DELAY=-1;AUTO_SERVER=FALSE
+    url: jdbc:h2:file:${BS_PREP_DATA_DIR:./data}/prep;MODE=MySQL;DB_CLOSE_DELAY=-1;AUTO_SERVER=FALSE
     driver-class-name: org.h2.Driver
     username: prep
     password:

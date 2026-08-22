@@ -31,7 +31,7 @@ public class RadarController {
     public PageResult<Map<String, Object>> listMixed(@RequestParam(defaultValue = "0") int page,
                                                      @RequestParam(defaultValue = "20") int size) {
         List<Map<String, Object>> all = new ArrayList<>();
-        for (RadarSiteRow site : service.listSites(0, 200).getItems()) {
+        for (RadarSiteRow site : service.listAllSites()) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", site.getId());
             row.put("kind", "SITE");
@@ -44,7 +44,7 @@ public class RadarController {
             row.put("status", site.getStatus());
             all.add(row);
         }
-        for (AsterixChannelRow channel : service.listChannels(0, 200).getItems()) {
+        for (AsterixChannelRow channel : service.listAllChannels()) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", channel.getId());
             row.put("kind", "CHANNEL");
@@ -62,7 +62,7 @@ public class RadarController {
         all.sort((a, b) -> String.valueOf(a.get("code")).compareTo(String.valueOf(b.get("code"))));
 
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safePage = org.bluesky.dataprep.common.Paging.safePage(page, safeSize);
         int from = Math.min(safePage * safeSize, all.size());
         int to = Math.min(from + safeSize, all.size());
         return new PageResult<>(new ArrayList<>(all.subList(from, to)), safePage, safeSize, all.size());

@@ -53,14 +53,14 @@ public interface AirwayMapper {
             + "procedure_direction = #{procedureDirection}, procedure_operation = #{procedureOperation}, "
             + "eligible_route = #{eligibleRoute}, "
             + "status = #{status}, source_reference = #{sourceReference}, "
-            + "updated_by = #{updatedBy}, revision = revision + 1 "
+            + "updated_by = #{updatedBy}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 "
             + "WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int update(AirwayRow row);
 
-    @Update("UPDATE airway SET deleted = TRUE, revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    @Update("UPDATE airway SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int markDeleted(@Param("id") String id, @Param("revision") int revision);
 
-    @Update("UPDATE airway SET status = #{status}, revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
+    @Update("UPDATE airway SET status = #{status}, updated_at = CURRENT_TIMESTAMP(3), revision = revision + 1 WHERE id = #{id} AND revision = #{revision} AND deleted = FALSE")
     int updateStatus(@Param("id") String id, @Param("revision") int revision, @Param("status") String status);
 
     // ---- 航段子表（JOIN 解析起止点编码）----
@@ -69,8 +69,8 @@ public interface AirwayMapper {
             + "s.lower_value, s.lower_reference, s.upper_value, s.upper_reference, "
             + "sp.code AS start_point_code, ep.code AS end_point_code "
             + "FROM airway_segment s "
-            + "JOIN navigation_point sp ON sp.id = s.start_point_id AND sp.deleted = FALSE "
-            + "JOIN navigation_point ep ON ep.id = s.end_point_id AND ep.deleted = FALSE "
+            + "LEFT JOIN navigation_point sp ON sp.id = s.start_point_id "
+            + "LEFT JOIN navigation_point ep ON ep.id = s.end_point_id "
             + "WHERE s.airway_id = #{airwayId} AND s.deleted = FALSE ORDER BY s.order_no")
     List<AirwaySegmentRow> findSegments(String airwayId);
 
@@ -80,6 +80,6 @@ public interface AirwayMapper {
             + "#{lowerValue}, #{lowerReference}, #{upperValue}, #{upperReference})")
     int insertSegment(AirwaySegmentRow row);
 
-    @Update("UPDATE airway_segment SET deleted = TRUE WHERE airway_id = #{airwayId}")
+    @Update("UPDATE airway_segment SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP(3) WHERE airway_id = #{airwayId} AND deleted = FALSE")
     int markSegmentsDeleted(String airwayId);
 }

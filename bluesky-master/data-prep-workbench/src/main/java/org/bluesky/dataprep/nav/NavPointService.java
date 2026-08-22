@@ -28,7 +28,7 @@ public class NavPointService {
 
     public PageResult<NavPointRow> list(int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safePage = org.bluesky.dataprep.common.Paging.safePage(page, safeSize);
         return new PageResult<>(
                 mapper.selectPage(safePage * safeSize, safeSize),
                 safePage, safeSize, mapper.count());
@@ -66,6 +66,16 @@ public class NavPointService {
         Guards.requireCodeUnique(mapper.countByCode(body.getCode(), id) > 0, body.getCode());
         body.setId(id);
         body.setSourceType(current.getSourceType());
+        if (body.getStatus() == null) body.setStatus(current.getStatus());
+        if (body.getSourceReference() == null) body.setSourceReference(current.getSourceReference());
+        if (body.getMagneticVariationDeg() == null) body.setMagneticVariationDeg(current.getMagneticVariationDeg());
+        if (body.getSourcePointType() == null) body.setSourcePointType(current.getSourcePointType());
+        if (body.getCoordinateText() == null) body.setCoordinateText(current.getCoordinateText());
+        if (body.getRelevantFlag() == null) body.setRelevantFlag(current.getRelevantFlag());
+        if (body.getApplicableAirports() == null) body.setApplicableAirports(current.getApplicableAirports());
+        if (body.getPilotFlag() == null) body.setPilotFlag(current.getPilotFlag());
+        if (body.getDtiFlag() == null) body.setDtiFlag(current.getDtiFlag());
+        if (body.getTfmFlag() == null) body.setTfmFlag(current.getTfmFlag());
         // 保留客户端提交的 revision：乐观锁由 UPDATE ... WHERE revision = #{revision} 强制
         Guards.requireUpdated(mapper.update(body), id);
         revisionService.increment();
@@ -96,14 +106,21 @@ public class NavPointService {
     }
 
     private void validate(NavPointRow row) {
-        if (row.getLongitude() != null && (row.getLongitude() < -180 || row.getLongitude() > 180)) {
+        validateStatus(row.getStatus());
+        if (row.getLongitude() != null && (!Double.isFinite(row.getLongitude()) || row.getLongitude() < -180 || row.getLongitude() > 180)) {
             throw ApiException.badRequest("经度必须在 [-180, 180]");
         }
-        if (row.getLatitude() != null && (row.getLatitude() < -90 || row.getLatitude() > 90)) {
+        if (row.getLatitude() != null && (!Double.isFinite(row.getLatitude()) || row.getLatitude() < -90 || row.getLatitude() > 90)) {
             throw ApiException.badRequest("纬度必须在 [-90, 90]");
         }
         if (row.getPointType() != null && !POINT_TYPES.contains(row.getPointType())) {
             throw ApiException.badRequest("导航点类型不合法：" + row.getPointType());
+        }
+    }
+
+    private static void validateStatus(String status) {
+        if (status != null && !status.isEmpty() && !"ENABLED".equals(status) && !"DISABLED".equals(status)) {
+            throw ApiException.badRequest("状态仅允许 ENABLED / DISABLED");
         }
     }
 }

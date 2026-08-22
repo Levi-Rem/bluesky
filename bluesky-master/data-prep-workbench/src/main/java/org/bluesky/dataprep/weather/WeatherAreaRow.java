@@ -21,7 +21,7 @@ public class WeatherAreaRow {
     private String lowerLimit;
     @NotBlank(message = "上限必填")
     private String upperLimit;
-    private String status = "ENABLED";
+    private String status;
     private String sourceType = "MANUAL";
     private String sourceReference;
     private int revision;

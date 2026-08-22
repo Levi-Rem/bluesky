@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -151,6 +152,32 @@ class MapApiTest {
                         .contentType(APPLICATION_JSON)
                         .content("{\"operations\":[]}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deletingOneWindPointKeepsFieldAndOtherPoints() throws Exception {
+        MvcResult created = mockMvc.perform(post("/api/wind-field")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"WIND-DELETE-POINT\",\"name\":\"点删除测试\","
+                                + "\"windFieldType\":\"THREE_DIMENSIONAL\",\"points\":["
+                                + "{\"longitude\":120,\"latitude\":30,\"altitudeM\":1000,"
+                                + "\"windDirectionDeg\":90,\"windSpeedMs\":5},"
+                                + "{\"longitude\":121,\"latitude\":31,\"altitudeM\":2000,"
+                                + "\"windDirectionDeg\":100,\"windSpeedMs\":6}]}"))
+                .andExpect(status().isOk()).andReturn();
+        String fieldId = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        String pointId = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.points[0].id");
+        int revision = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.revision");
+
+        mockMvc.perform(put("/api/map/features")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"operations\":[{\"operationType\":\"DELETE\","
+                                + "\"entityType\":\"wind-field\",\"entityId\":\"" + fieldId + "\","
+                                + "\"featureId\":\"" + pointId + "\",\"revision\":" + revision + "}]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.saved").value(1));
+        mockMvc.perform(get("/api/wind-field/{id}", fieldId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.points.length()").value(1));
     }
 
     @Test
