@@ -9,14 +9,19 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import javax.sql.DataSource;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.hasItems;
 
 @SpringBootTest(classes = TrainingPlatformApplication.class)
 @AutoConfigureMockMvc
@@ -29,6 +34,9 @@ class DisplaySettingsApiTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private DataSource dataSource;
 
     @MockBean
     private SimulationGateway simulationGateway;
@@ -68,12 +76,43 @@ class DisplaySettingsApiTest {
         mockMvc.perform(put("/api/v1/workstation/display-settings")
                         .contentType(APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.code").value("INVALID_DISPLAY_COLOR"))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("trackColor"));
 
         String after = jdbc.queryForObject(
                 "SELECT parameter_value FROM system_parameter WHERE parameter_key='ui.trackColor'", String.class);
         org.assertj.core.api.Assertions.assertThat(after).isEqualTo(before);
+    }
+
+    @Test
+    void returnsAllInvalidAndUnknownFieldsInOneResponse() throws Exception {
+        String body = validBody("red")
+                .replace("\"selectedTrackColor\":\"#27e58d\"",
+                        "\"selectedTrackColor\":\"blue\"")
+                .replace("}", ",\"unexpectedColor\":\"#123456\"}");
+
+        mockMvc.perform(put("/api/v1/workstation/display-settings")
+                        .contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_DISPLAY_COLOR"))
+                .andExpect(jsonPath("$.message").value("显示颜色格式不合法"))
+                .andExpect(jsonPath("$.fieldErrors.length()").value(3))
+                .andExpect(jsonPath("$.fieldErrors[*].field",
+                        hasItems("trackColor", "selectedTrackColor", "unexpectedColor")));
+    }
+
+    @Test
+    void mapColorMigrationIsIdempotentAndPreservesExistingValues() {
+        jdbc.update("UPDATE system_parameter SET parameter_value='#123456' "
+                + "WHERE parameter_key='ui.mapWaypointColor'");
+
+        new ResourceDatabasePopulator(new ClassPathResource(
+                "db/migration/V7__map_display_colors.sql")).execute(dataSource);
+
+        String stored = jdbc.queryForObject(
+                "SELECT parameter_value FROM system_parameter WHERE parameter_key='ui.mapWaypointColor'",
+                String.class);
+        org.assertj.core.api.Assertions.assertThat(stored).isEqualTo("#123456");
     }
 
     private String validBody(String trackColor) {

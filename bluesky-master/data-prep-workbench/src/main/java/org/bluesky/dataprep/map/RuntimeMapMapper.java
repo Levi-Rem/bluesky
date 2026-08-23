@@ -20,14 +20,16 @@ public interface RuntimeMapMapper {
 
     @Select("SELECT s.airway_id AS \"airwayId\", s.order_no * 2 AS \"seq\", "
             + "sp.longitude AS \"longitude\", sp.latitude AS \"latitude\" "
-            + "FROM airway_segment s JOIN navigation_point sp ON sp.id = s.start_point_id "
+            + "FROM airway_segment s LEFT JOIN navigation_point sp "
+            + "ON sp.id = s.start_point_id AND sp.deleted = FALSE "
             + "JOIN airway a ON a.id = s.airway_id "
-            + "WHERE s.deleted = FALSE AND sp.deleted = FALSE AND a.deleted = FALSE AND a.status = 'ENABLED' "
+            + "WHERE s.deleted = FALSE AND a.deleted = FALSE AND a.status = 'ENABLED' "
             + "UNION ALL "
             + "SELECT s.airway_id, s.order_no * 2 + 1, ep.longitude, ep.latitude "
-            + "FROM airway_segment s JOIN navigation_point ep ON ep.id = s.end_point_id "
+            + "FROM airway_segment s LEFT JOIN navigation_point ep "
+            + "ON ep.id = s.end_point_id AND ep.deleted = FALSE "
             + "JOIN airway a ON a.id = s.airway_id "
-            + "WHERE s.deleted = FALSE AND ep.deleted = FALSE AND a.deleted = FALSE AND a.status = 'ENABLED' "
+            + "WHERE s.deleted = FALSE AND a.deleted = FALSE AND a.status = 'ENABLED' "
             + "ORDER BY 1, 2")
     List<Map<String, Object>> selectAirwayVertices();
 
@@ -49,7 +51,7 @@ public interface RuntimeMapMapper {
     List<Map<String, Object>> selectWindPoints();
 
     @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", "
-            + "CAST(boundary AS VARCHAR(16384)) AS \"boundary\" "
+            + "CAST(boundary AS CHAR(16384)) AS \"boundary\" "
             + "FROM significant_weather_area "
             + "WHERE deleted = FALSE AND status = 'ENABLED' ORDER BY code, id")
     List<Map<String, Object>> selectSignificantWeatherAreas();

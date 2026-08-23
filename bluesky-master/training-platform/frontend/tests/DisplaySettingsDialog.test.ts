@@ -1,18 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import DisplaySettingsDialog from '../src/DisplaySettingsDialog.vue'
 import type { DisplaySettings } from '../src/types'
+import { DEFAULT_DISPLAY_SETTINGS } from '../src/displaySettings'
 
 const saved: DisplaySettings = {
   trackColor: '#111111', selectedTrackColor: '#222222', mapWaypointColor: '#333333',
   mapAirwayColor: '#444444', mapSectorColor: '#555555', mapSectorFillColor: '#666666',
   mapWeatherColor: '#777777', mapWeatherFillColor: '#888888'
 }
-const defaults: DisplaySettings = {
-  trackColor: '#3FAE6D', selectedTrackColor: '#27E58D', mapWaypointColor: '#7FD3FF',
-  mapAirwayColor: '#4AA8D8', mapSectorColor: '#D6A7FF', mapSectorFillColor: '#7B4DB3',
-  mapWeatherColor: '#FFCF66', mapWeatherFillColor: '#D9822B'
-}
+const defaults: DisplaySettings = { ...DEFAULT_DISPLAY_SETTINGS }
 
 describe('DisplaySettingsDialog', () => {
   it('renders eight settings and previews restored defaults before saving', async () => {
@@ -37,5 +35,34 @@ describe('DisplaySettingsDialog', () => {
 
     expect(wrapper.emitted('preview')?.[0]).toEqual([saved])
     expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('does not close from the backdrop while a save is in progress', async () => {
+    const wrapper = mount(DisplaySettingsDialog, {
+      props: { open: true, saved, defaults, busy: true, error: '' }
+    })
+
+    await wrapper.get('.display-settings-mask').trigger('pointerdown')
+
+    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(wrapper.emitted('preview')).toBeUndefined()
+  })
+
+  it('moves focus into the dialog and traps tab navigation', async () => {
+    const wrapper = mount(DisplaySettingsDialog, {
+      attachTo: document.body,
+      props: { open: false, saved, defaults, busy: false, error: '' }
+    })
+    await wrapper.setProps({ open: true })
+    await nextTick()
+
+    const focusable = wrapper.findAll('button:not([disabled]), input:not([disabled])')
+    expect(document.activeElement).toBe(focusable[0].element)
+
+    const last = focusable[focusable.length - 1].element as HTMLElement
+    last.focus()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(focusable[0].element)
+    wrapper.unmount()
   })
 })

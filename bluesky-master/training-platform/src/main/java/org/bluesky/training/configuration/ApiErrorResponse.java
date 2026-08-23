@@ -1,7 +1,9 @@
 package org.bluesky.training.configuration;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public final class ApiErrorResponse {
     private final String code;
@@ -23,6 +25,21 @@ public final class ApiErrorResponse {
                 message,
                 Collections.singletonList(new FieldErrorView(field, message)),
                 requestId);
+    }
+
+    public static ApiErrorResponse displaySettingsValidation(Map<String, String> errors,
+                                                              String requestId) {
+        List<FieldErrorView> fields = new ArrayList<>();
+        for (Map.Entry<String, String> error : errors.entrySet()) {
+            fields.add(new FieldErrorView(error.getKey(), error.getValue()));
+        }
+        return new ApiErrorResponse(
+                "INVALID_DISPLAY_COLOR", "显示颜色格式不合法", fields, requestId);
+    }
+
+    public static ApiErrorResponse configurationError(String message, String requestId) {
+        return new ApiErrorResponse(
+                "CONFIGURATION_ERROR", message, Collections.emptyList(), requestId);
     }
 
     public static ApiErrorResponse engineUnavailable(String message, String requestId) {

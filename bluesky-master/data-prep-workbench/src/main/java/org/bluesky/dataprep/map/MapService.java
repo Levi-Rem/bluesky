@@ -694,7 +694,7 @@ public class MapService {
         int updateWindPointGeometry(@Param("id") String id, @Param("longitude") double longitude,
                                     @Param("latitude") double latitude);
 
-        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", revision AS \"revision\", CAST(boundary AS VARCHAR(16384)) AS \"boundary\" "
+        @Select("SELECT id AS \"id\", code AS \"code\", name AS \"name\", revision AS \"revision\", CAST(boundary AS CHAR(16384)) AS \"boundary\" "
                 + "FROM significant_weather_area WHERE deleted = FALSE")
         List<Map<String, Object>> selectSigWeatherAreas();
 

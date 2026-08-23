@@ -2,6 +2,8 @@ package org.bluesky.training.configuration;
 
 import org.bluesky.training.adapter.AdapterUnavailableException;
 import org.bluesky.training.adapter.AdapterRejectedException;
+import org.bluesky.training.display.DisplaySettingsPersistenceException;
+import org.bluesky.training.display.DisplaySettingsValidationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -17,6 +19,21 @@ public class ApiExceptionHandler {
                                        HttpServletRequest request) {
         return ApiErrorResponse.fieldError(
                 exception.getField(), exception.getMessage(), requestId(request));
+    }
+
+    @ExceptionHandler(DisplaySettingsValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiErrorResponse displaySettingsValidation(DisplaySettingsValidationException exception,
+                                                       HttpServletRequest request) {
+        return ApiErrorResponse.displaySettingsValidation(
+                exception.getFieldErrors(), requestId(request));
+    }
+
+    @ExceptionHandler(DisplaySettingsPersistenceException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ApiErrorResponse displaySettingsPersistence(DisplaySettingsPersistenceException exception,
+                                                        HttpServletRequest request) {
+        return ApiErrorResponse.configurationError(exception.getMessage(), requestId(request));
     }
 
     @ExceptionHandler(AdapterUnavailableException.class)

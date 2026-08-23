@@ -18,7 +18,8 @@ public class MapDataService {
             MapLayersResponse response = client.fetch();
             return response == null ? MapLayersResponse.unavailable() : response;
         } catch (RuntimeException error) {
-            log.warn("飞行数据准备地图快照不可用: {}", error.getMessage());
+            log.warn("飞行数据准备地图快照不可用 target=data-prep failureType={} reason={}",
+                    error.getClass().getSimpleName(), error.getMessage());
             return MapLayersResponse.unavailable();
         }
     }

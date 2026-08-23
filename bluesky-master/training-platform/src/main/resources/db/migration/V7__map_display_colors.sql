@@ -1,12 +1,18 @@
 INSERT INTO system_parameter (parameter_key, parameter_value)
-VALUES ('ui.mapWaypointColor', '#7FD3FF');
+SELECT 'ui.mapWaypointColor', '#7FD3FF'
+WHERE NOT EXISTS (SELECT 1 FROM system_parameter WHERE parameter_key = 'ui.mapWaypointColor');
 INSERT INTO system_parameter (parameter_key, parameter_value)
-VALUES ('ui.mapAirwayColor', '#4AA8D8');
+SELECT 'ui.mapAirwayColor', '#4AA8D8'
+WHERE NOT EXISTS (SELECT 1 FROM system_parameter WHERE parameter_key = 'ui.mapAirwayColor');
 INSERT INTO system_parameter (parameter_key, parameter_value)
-VALUES ('ui.mapSectorColor', '#D6A7FF');
+SELECT 'ui.mapSectorColor', '#D6A7FF'
+WHERE NOT EXISTS (SELECT 1 FROM system_parameter WHERE parameter_key = 'ui.mapSectorColor');
 INSERT INTO system_parameter (parameter_key, parameter_value)
-VALUES ('ui.mapSectorFillColor', '#7B4DB3');
+SELECT 'ui.mapSectorFillColor', '#7B4DB3'
+WHERE NOT EXISTS (SELECT 1 FROM system_parameter WHERE parameter_key = 'ui.mapSectorFillColor');
 INSERT INTO system_parameter (parameter_key, parameter_value)
-VALUES ('ui.mapWeatherColor', '#FFCF66');
+SELECT 'ui.mapWeatherColor', '#FFCF66'
+WHERE NOT EXISTS (SELECT 1 FROM system_parameter WHERE parameter_key = 'ui.mapWeatherColor');
 INSERT INTO system_parameter (parameter_key, parameter_value)
-VALUES ('ui.mapWeatherFillColor', '#D9822B');
+SELECT 'ui.mapWeatherFillColor', '#D9822B'
+WHERE NOT EXISTS (SELECT 1 FROM system_parameter WHERE parameter_key = 'ui.mapWeatherFillColor');

@@ -1,6 +1,5 @@
 package org.bluesky.training.display;
 
-import org.bluesky.training.configuration.FieldValidationException;
 import org.bluesky.training.persistence.DisplaySettingsMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,16 +40,13 @@ public class DisplaySettingsService {
 
     @Transactional
     public DisplaySettingsView save(DisplaySettingsRequest request) {
-        if (request == null) throw new FieldValidationException("displaySettings", "显示设置不能为空");
+        Map<String, String> errors = validate(request);
+        if (!errors.isEmpty()) throw new DisplaySettingsValidationException(errors);
         DisplaySettingsView normalized = new DisplaySettingsView(
-                color("trackColor", request.getTrackColor()),
-                color("selectedTrackColor", request.getSelectedTrackColor()),
-                color("mapWaypointColor", request.getMapWaypointColor()),
-                color("mapAirwayColor", request.getMapAirwayColor()),
-                color("mapSectorColor", request.getMapSectorColor()),
-                color("mapSectorFillColor", request.getMapSectorFillColor()),
-                color("mapWeatherColor", request.getMapWeatherColor()),
-                color("mapWeatherFillColor", request.getMapWeatherFillColor()));
+                normalize(request.getTrackColor()), normalize(request.getSelectedTrackColor()),
+                normalize(request.getMapWaypointColor()), normalize(request.getMapAirwayColor()),
+                normalize(request.getMapSectorColor()), normalize(request.getMapSectorFillColor()),
+                normalize(request.getMapWeatherColor()), normalize(request.getMapWeatherFillColor()));
 
         Map<String, String> updates = new LinkedHashMap<>();
         updates.put("ui.trackColor", normalized.getTrackColor());
@@ -63,21 +59,43 @@ public class DisplaySettingsService {
         updates.put("ui.mapWeatherFillColor", normalized.getMapWeatherFillColor());
         for (Map.Entry<String, String> update : updates.entrySet()) {
             if (mapper.update(update.getKey(), update.getValue()) != 1) {
-                throw new IllegalStateException("显示参数不存在: " + update.getKey());
+                throw new DisplaySettingsPersistenceException("显示参数不存在: " + update.getKey());
             }
         }
         return normalized;
     }
 
-    private String color(String field, String value) {
-        if (value == null || !COLOR.matcher(value.trim()).matches()) {
-            throw new FieldValidationException(field, "必须使用 #RRGGBB 格式");
+    private Map<String, String> validate(DisplaySettingsRequest request) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        if (request == null) {
+            errors.put("displaySettings", "显示设置不能为空");
+            return errors;
         }
+        validateColor(errors, "trackColor", request.getTrackColor());
+        validateColor(errors, "selectedTrackColor", request.getSelectedTrackColor());
+        validateColor(errors, "mapWaypointColor", request.getMapWaypointColor());
+        validateColor(errors, "mapAirwayColor", request.getMapAirwayColor());
+        validateColor(errors, "mapSectorColor", request.getMapSectorColor());
+        validateColor(errors, "mapSectorFillColor", request.getMapSectorFillColor());
+        validateColor(errors, "mapWeatherColor", request.getMapWeatherColor());
+        validateColor(errors, "mapWeatherFillColor", request.getMapWeatherFillColor());
+        for (String field : request.getUnknownFields()) errors.put(field, "未知字段");
+        return errors;
+    }
+
+    private void validateColor(Map<String, String> errors, String field, String value) {
+        if (value == null || !COLOR.matcher(value.trim()).matches()) {
+            errors.put(field, "必须使用 #RRGGBB 格式");
+        }
+    }
+
+    private String normalize(String value) {
         return value.trim().toUpperCase(Locale.ROOT);
     }
 
     private String value(Map<String, String> values, String key, String fallback) {
         String value = values.get(key);
-        return value == null || value.trim().isEmpty() ? fallback : value;
+        if (value == null || !COLOR.matcher(value.trim()).matches()) return fallback;
+        return normalize(value);
     }
 }

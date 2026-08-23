@@ -8,9 +8,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class RuntimeMapService {
@@ -57,12 +59,13 @@ public class RuntimeMapService {
 
     private RuntimeMapLayer airways() {
         RuntimeMapLayer layer = new RuntimeMapLayer("AIRWAY", "航线");
-        Map<String, List<List<Double>>> paths = coordinatesBy(
+        CoordinateGroups paths = coordinatesBy(
                 mapper.selectAirwayVertices(), "airwayId");
         for (Map<String, Object> row : mapper.selectAirways()) {
             String id = string(row.get("id"));
             try {
-                List<List<Double>> path = removeAdjacentDuplicates(paths.get(id));
+                rejectInvalidGroup(paths, id, "航线包含缺失或非法顶点");
+                List<List<Double>> path = removeAdjacentDuplicates(paths.coordinates.get(id));
                 if (path.size() < 2) throw new IllegalArgumentException("航线有效顶点少于两个");
                 layer.addFeature("airway:" + id, "AIRWAY", string(row.get("code")),
                         string(row.get("name")), geometry("LineString", path));
@@ -75,12 +78,13 @@ public class RuntimeMapService {
 
     private RuntimeMapLayer physicalSectors() {
         RuntimeMapLayer layer = new RuntimeMapLayer("PHYSICAL_SECTOR", "扇区");
-        Map<String, List<List<Double>>> boundaries = coordinatesBy(
+        CoordinateGroups boundaries = coordinatesBy(
                 mapper.selectPhysicalSectorPoints(), "sectorId");
         for (Map<String, Object> row : mapper.selectPhysicalSectors()) {
             String id = string(row.get("id"));
             try {
-                List<List<Double>> boundary = removeAdjacentDuplicates(boundaries.get(id));
+                rejectInvalidGroup(boundaries, id, "扇区包含缺失或非法顶点");
+                List<List<Double>> boundary = removeAdjacentDuplicates(boundaries.coordinates.get(id));
                 if (boundary.size() < 3) throw new IllegalArgumentException("扇区有效顶点少于三个");
                 close(boundary);
                 List<List<List<Double>>> rings = new ArrayList<>();
@@ -123,18 +127,23 @@ public class RuntimeMapService {
         return layer;
     }
 
-    private Map<String, List<List<Double>>> coordinatesBy(List<Map<String, Object>> rows, String key) {
-        Map<String, List<List<Double>>> result = new LinkedHashMap<>();
+    private CoordinateGroups coordinatesBy(List<Map<String, Object>> rows, String key) {
+        CoordinateGroups result = new CoordinateGroups();
         for (Map<String, Object> row : rows) {
             String id = string(row.get(key));
             try {
-                result.computeIfAbsent(id, ignored -> new ArrayList<>())
+                result.coordinates.computeIfAbsent(id, ignored -> new ArrayList<>())
                         .add(coordinate(row.get("longitude"), row.get("latitude")));
             } catch (IllegalArgumentException error) {
+                result.invalidIds.add(id);
                 warn("COORDINATE", id, error);
             }
         }
         return result;
+    }
+
+    private void rejectInvalidGroup(CoordinateGroups groups, String id, String message) {
+        if (groups.invalidIds.contains(id)) throw new IllegalArgumentException(message);
     }
 
     private Map<String, Object> point(Object longitude, Object latitude) {
@@ -189,5 +198,10 @@ public class RuntimeMapService {
 
     private void warn(String type, String id, Exception error) {
         log.warn("跳过无效运行态地图要素 type={} id={} reason={}", type, id, error.getMessage());
+    }
+
+    private static final class CoordinateGroups {
+        private final Map<String, List<List<Double>>> coordinates = new LinkedHashMap<>();
+        private final Set<String> invalidIds = new HashSet<>();
     }
 }

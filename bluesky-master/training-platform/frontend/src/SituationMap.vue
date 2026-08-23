@@ -16,6 +16,7 @@ import type { Aircraft, DisplaySettings, MapLayerCategory, MapLayerVisibility, R
 import { formatHeading, hasTrackPosition } from './situationGeometry'
 import { clampDistance, labelCenterOffset, nearestEdgeMidpoint, symbolRotation, defaultLayout } from './labelGeometry'
 import { displayLabel, hexWithAlpha } from './mapLayerStyles'
+import { aircraftIdFromFeature, RUNTIME_LAYER_ORDER } from './runtimeMapBehavior'
 
 const props = defineProps<{
   aircraft: Aircraft[]
@@ -287,11 +288,7 @@ onMounted(() => {
     layers: [],
     view: new View({ center: fromLonLat([116.5, 34]), zoom: 5, minZoom: 2, maxZoom: 14 })
   })
-  const layerOrder: Array<{ category: MapLayerCategory; zIndex: number }> = [
-    { category: 'PHYSICAL_SECTOR', zIndex: 10 }, { category: 'WEATHER', zIndex: 20 },
-    { category: 'AIRWAY', zIndex: 30 }, { category: 'WAYPOINT', zIndex: 40 }
-  ]
-  for (const definition of layerOrder) {
+  for (const definition of RUNTIME_LAYER_ORDER) {
     const layer = new VectorLayer({
       source: runtimeSources[definition.category], visible: props.layerVisibility[definition.category],
       style: feature => runtimeStyle(feature.get('runtimeFeature') as RuntimeMapFeature)
@@ -306,9 +303,9 @@ onMounted(() => {
   map.on('singleclick', event => {
     let picked: string | null = null
     map?.forEachFeatureAtPixel(event.pixel, feature => {
-      const id = feature.get('aircraftId')
+      const id = aircraftIdFromFeature(feature.get('aircraftId'))
       if (id) {
-        picked = String(id)
+        picked = id
         return true
       }
       return undefined

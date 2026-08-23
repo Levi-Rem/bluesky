@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import SituationMap from './SituationMap.vue'
 import CreateAircraftDialog from './CreateAircraftDialog.vue'
 import MapLayerMenu from './MapLayerMenu.vue'
@@ -8,6 +8,7 @@ import { insertionForEnter } from './commandKeys'
 import { arrangeInstructionQueue } from './instructionQueue'
 import { api } from './api'
 import { useWorkstationStore } from './store'
+import { DEFAULT_DISPLAY_SETTINGS } from './displaySettings'
 import type { DisplaySettings, MapLayerCategory } from './types'
 
 const store = useWorkstationStore()
@@ -21,14 +22,11 @@ const settingsOpen = ref(false)
 const settingsBusy = ref(false)
 const settingsError = ref('')
 const previewSettings = ref<DisplaySettings | null>(null)
+const displaySettingsTrigger = ref<HTMLButtonElement | null>(null)
 
 const group = computed(() => store.bootstrap?.exerciseGroup)
 const engine = computed(() => store.bootstrap?.engine)
-const fallbackSettings: DisplaySettings = {
-  trackColor: '#3fae6d', selectedTrackColor: '#27e58d', mapWaypointColor: '#7fd3ff',
-  mapAirwayColor: '#4aa8d8', mapSectorColor: '#d6a7ff', mapSectorFillColor: '#7b4db3',
-  mapWeatherColor: '#ffcf66', mapWeatherFillColor: '#d9822b'
-}
+const fallbackSettings = DEFAULT_DISPLAY_SETTINGS
 const colors = computed(() => previewSettings.value ?? store.bootstrap?.uiParameters ?? fallbackSettings)
 const savedSettings = computed<DisplaySettings>(() => store.bootstrap?.uiParameters ?? fallbackSettings)
 const defaultSettings = computed<DisplaySettings>(() => store.bootstrap?.uiParameterDefaults ?? fallbackSettings)
@@ -108,6 +106,9 @@ async function saveSettings(settings: DisplaySettings) {
 watch(() => store.bootstrap?.uiParameters, value => {
   if (value && !settingsOpen.value) previewSettings.value = { ...value }
 }, { deep: true })
+watch(settingsOpen, (open, wasOpen) => {
+  if (!open && wasOpen) void nextTick(() => displaySettingsTrigger.value?.focus())
+})
 
 onMounted(() => {
   void store.loadMapLayersOnce()
@@ -133,7 +134,8 @@ onMounted(() => {
       <time>{{ formatTime(group?.simulationTimeSeconds) }}</time>
       <span>{{ store.aircraft.length }}/{{ store.aircraft.length }}</span>
       <span class="engine-light" :class="engine?.connected ? 'connected' : 'disconnected'" :title="engine?.message" />
-      <button class="display-settings-trigger" title="显示设置" @click="openDisplaySettings">显示设置</button>
+      <button ref="displaySettingsTrigger" class="display-settings-trigger" title="显示设置"
+        @click="openDisplaySettings">显示设置</button>
       <button class="collapse" title="折叠状态栏" @click="topHidden = true">‹</button>
     </header>
     <button v-else class="restore top-restore" title="展开状态栏" @click="topHidden = false">›</button>

@@ -75,12 +75,38 @@ class RuntimeMapApiTest {
 
     @Test
     void weatherCombinesEnabledWindPointsAndSignificantAreasWithoutTimeFiltering() throws Exception {
+        jdbc.update("UPDATE significant_weather_area SET valid_from=TIMESTAMP '2000-01-01 00:00:00', "
+                + "valid_to=TIMESTAMP '2000-01-02 00:00:00' WHERE id='seed-cb-07'");
+
         mockMvc.perform(get("/api/map/runtime-layers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.layers[3].features[*].featureType", hasItem("WIND_FIELD_POINT")))
                 .andExpect(jsonPath("$.layers[3].features[*].featureType", hasItem("SIGNIFICANT_WEATHER_AREA")))
                 .andExpect(jsonPath("$.layers[3].features[*].code", hasItem("CB-07")))
                 .andExpect(jsonPath("$.layers[3].features[*].code", not(hasItem("MET-ZSPD"))));
+    }
+
+    @Test
+    void skipsAnEntireAirwayWhenAnyVertexIsInvalid() throws Exception {
+        jdbc.update("UPDATE navigation_point SET latitude=999 WHERE id='seed-nav-sasan'");
+
+        mockMvc.perform(get("/api/map/runtime-layers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layers[0].features[*].code", not(hasItem("SASAN"))))
+                .andExpect(jsonPath("$.layers[1].features[*].code", hasItem("W13")))
+                .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("A593"))))
+                .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("B221"))));
+    }
+
+    @Test
+    void skipsAnEntireAirwayWhenAReferencedWaypointIsDeleted() throws Exception {
+        jdbc.update("UPDATE navigation_point SET deleted=TRUE WHERE id='seed-nav-sasan'");
+
+        mockMvc.perform(get("/api/map/runtime-layers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layers[1].features[*].code", hasItem("W13")))
+                .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("A593"))))
+                .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("B221"))));
     }
 
     private void insertSectorPoint(String id, int order, double longitude, double latitude) {

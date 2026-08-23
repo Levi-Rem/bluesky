@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { DisplaySettings } from './types'
 
 const props = defineProps<{
@@ -14,6 +14,7 @@ const emit = defineEmits<{
   save: [settings: DisplaySettings]
   close: []
 }>()
+const dialog = ref<HTMLElement | null>(null)
 
 const fields: Array<{ key: keyof DisplaySettings; label: string; group: 'track' | 'map'; note?: string }> = [
   { key: 'trackColor', label: '普通航迹', group: 'track' },
@@ -28,8 +29,12 @@ const fields: Array<{ key: keyof DisplaySettings; label: string; group: 'track' 
 const draft = reactive<DisplaySettings>({ ...props.saved })
 const valid = computed(() => fields.every(field => /^#[0-9a-fA-F]{6}$/.test(draft[field.key])))
 
-watch(() => props.open, open => {
-  if (open) Object.assign(draft, props.saved)
+watch(() => props.open, async open => {
+  if (open) {
+    Object.assign(draft, props.saved)
+    await nextTick()
+    focusableElements()[0]?.focus()
+  }
 })
 
 function update(key: keyof DisplaySettings, value: string) {
@@ -41,6 +46,7 @@ function resetDefaults() {
   emit('preview', { ...draft })
 }
 function cancel() {
+  if (props.busy) return
   emit('preview', { ...props.saved })
   emit('close')
 }
@@ -48,7 +54,28 @@ function save() {
   if (valid.value && !props.busy) emit('save', { ...draft })
 }
 function onKey(event: KeyboardEvent) {
-  if (props.open && event.key === 'Escape' && !props.busy) cancel()
+  if (!props.open) return
+  if (event.key === 'Escape' && !props.busy) cancel()
+  if (event.key === 'Tab') trapFocus(event)
+}
+function focusableElements() {
+  if (!dialog.value) return []
+  return Array.from(dialog.value.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  ))
+}
+function trapFocus(event: KeyboardEvent) {
+  const elements = focusableElements()
+  if (!elements.length) return
+  const first = elements[0]
+  const last = elements[elements.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 onMounted(() => document.addEventListener('keydown', onKey))
 onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
@@ -56,7 +83,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 
 <template>
   <div v-if="open" class="display-settings-mask" @pointerdown.self="cancel">
-    <section class="display-settings panel" role="dialog" aria-modal="true" aria-labelledby="display-settings-title">
+    <section ref="dialog" class="display-settings panel" role="dialog" aria-modal="true"
+      aria-labelledby="display-settings-title" tabindex="-1">
       <header class="display-settings-header">
         <strong id="display-settings-title">显示设置</strong>
         <button class="form-close" :disabled="busy" aria-label="关闭显示设置" @click="cancel">×</button>

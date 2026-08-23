@@ -1,5 +1,10 @@
 package org.bluesky.training.display;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 public class DisplaySettingsRequest {
     private String trackColor;
     private String selectedTrackColor;
@@ -9,6 +14,7 @@ public class DisplaySettingsRequest {
     private String mapSectorFillColor;
     private String mapWeatherColor;
     private String mapWeatherFillColor;
+    private final Set<String> unknownFields = new LinkedHashSet<>();
 
     public String getTrackColor() { return trackColor; }
     public void setTrackColor(String trackColor) { this.trackColor = trackColor; }
@@ -26,4 +32,10 @@ public class DisplaySettingsRequest {
     public void setMapWeatherColor(String mapWeatherColor) { this.mapWeatherColor = mapWeatherColor; }
     public String getMapWeatherFillColor() { return mapWeatherFillColor; }
     public void setMapWeatherFillColor(String mapWeatherFillColor) { this.mapWeatherFillColor = mapWeatherFillColor; }
+    public Set<String> getUnknownFields() { return unknownFields; }
+
+    @JsonAnySetter
+    public void addUnknownField(String name, Object ignoredValue) {
+        unknownFields.add(name);
+    }
 }
