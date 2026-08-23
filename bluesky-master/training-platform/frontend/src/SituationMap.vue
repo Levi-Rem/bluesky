@@ -7,23 +7,34 @@ import Point from 'ol/geom/Point'
 import LineString from 'ol/geom/LineString'
 import VectorSource from 'ol/source/Vector'
 import VectorLayer from 'ol/layer/Vector'
+import GeoJSON from 'ol/format/GeoJSON'
 import { fromLonLat } from 'ol/proj'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import DragPan from 'ol/interaction/DragPan'
-import { Fill, Icon, Stroke, Style, Text } from 'ol/style'
-import type { Aircraft } from './types'
+import { Circle as CircleStyle, Fill, Icon, RegularShape, Stroke, Style, Text } from 'ol/style'
+import type { Aircraft, DisplaySettings, MapLayerCategory, MapLayerVisibility, RuntimeMapFeature, RuntimeMapLayer } from './types'
 import { formatHeading, hasTrackPosition } from './situationGeometry'
 import { clampDistance, labelCenterOffset, nearestEdgeMidpoint, symbolRotation, defaultLayout } from './labelGeometry'
+import { displayLabel, hexWithAlpha } from './mapLayerStyles'
 
 const props = defineProps<{
   aircraft: Aircraft[]
   selectedId: string | null
   trackColor: string
   selectedTrackColor: string
+  runtimeLayers: RuntimeMapLayer[]
+  layerVisibility: MapLayerVisibility
+  displaySettings: DisplaySettings
 }>()
 const emit = defineEmits<{ select: [id: string] }>()
 let map: OlMap | null = null
-const source = new VectorSource()
+const aircraftSource = new VectorSource()
+const runtimeSources: Record<MapLayerCategory, VectorSource> = {
+  WAYPOINT: new VectorSource(), AIRWAY: new VectorSource(),
+  PHYSICAL_SECTOR: new VectorSource(), WEATHER: new VectorSource()
+}
+const runtimeVectorLayers = new Map<MapLayerCategory, VectorLayer<VectorSource>>()
+const geoJson = new GeoJSON()
 
 /* 标牌布局：angle 为屏幕角度（deg），dist 为标牌中心到符号中心的像素距离 */
 type LabelLayout = { angle: number; dist: number }
@@ -61,7 +72,7 @@ function layoutOf(id: string): LabelLayout {
 }
 
 function redraw() {
-  source.clear()
+  aircraftSource.clear()
   const live = new Set(props.aircraft.map(a => a.id))
   for (const k of Array.from(layouts.keys())) {
     if (!live.has(k)) layouts.delete(k)
@@ -81,7 +92,7 @@ function redraw() {
     const line = new Feature({ geometry: new LineString([coord, coord]) })
     line.setId(`line:${item.id}`)
     line.setStyle(new Style({ stroke: new Stroke({ color, width: 1.5 }), zIndex: 1 + base }))
-    source.addFeature(line)
+    aircraftSource.addFeature(line)
 
     /* 航迹符号：三角，指向=航向 */
     const sym = new Feature({ geometry: new Point(coord), aircraftId: item.id })
@@ -93,7 +104,7 @@ function redraw() {
       }),
       zIndex: 3 + base
     }))
-    source.addFeature(sym)
+    aircraftSource.addFeature(sym)
 
     /* 标牌：文本居中于 center 偏移处；无背景盒（空白区透明，重叠时不整块遮挡），
        仅字形带暗描边保证可读 */
@@ -112,7 +123,7 @@ function redraw() {
       }),
       zIndex: 2 + base
     }))
-    source.addFeature(lab)
+    aircraftSource.addFeature(lab)
   }
   syncAnchors()
 }
@@ -120,7 +131,7 @@ function redraw() {
 /* 缩放/平移后重算标杆线端点（标牌偏移是像素单位，天然跟随符号） */
 function syncAnchors() {
   if (!map) return
-    for (const f of source.getFeatures()) {
+    for (const f of aircraftSource.getFeatures()) {
     const fid = String(f.getId() ?? '')
     if (!fid.startsWith('line:')) continue
     const id = fid.slice(5)
@@ -193,6 +204,78 @@ function onPointerUp() {
   if (map) map.getTargetElement().style.cursor = ''
 }
 
+function runtimeText(item: RuntimeMapFeature, color: string, placement?: 'line') {
+  return new Text({
+    text: displayLabel(item), placement, overflow: true,
+    offsetX: placement ? 0 : 7, offsetY: placement ? 0 : -7,
+    textAlign: placement ? undefined : 'left',
+    font: '11px Consolas, monospace',
+    fill: new Fill({ color }), stroke: new Stroke({ color: 'rgba(4, 15, 22, .96)', width: 3 })
+  })
+}
+
+function runtimeStyle(item: RuntimeMapFeature) {
+  const settings = props.displaySettings
+  if (item.featureType === 'WAYPOINT') {
+    return new Style({
+      image: new CircleStyle({ radius: 6, fill: new Fill({ color: '#07141c' }),
+        stroke: new Stroke({ color: settings.mapWaypointColor, width: 1.5 }) }),
+      text: runtimeText(item, settings.mapWaypointColor), zIndex: 40
+    })
+  }
+  if (item.featureType === 'AIRWAY') {
+    return new Style({ stroke: new Stroke({ color: settings.mapAirwayColor, width: 1.5 }),
+      text: runtimeText(item, settings.mapAirwayColor, 'line'), zIndex: 30 })
+  }
+  if (item.featureType === 'PHYSICAL_SECTOR') {
+    return new Style({ stroke: new Stroke({ color: settings.mapSectorColor, width: 1.5 }),
+      fill: new Fill({ color: hexWithAlpha(settings.mapSectorFillColor) }),
+      text: runtimeText(item, settings.mapSectorColor), zIndex: 10 })
+  }
+  if (item.featureType === 'WIND_FIELD_POINT') {
+    return new Style({
+      image: new RegularShape({ points: 4, radius: 7, radius2: 0, angle: Math.PI / 4,
+        stroke: new Stroke({ color: settings.mapWeatherColor, width: 1.5 }) }),
+      text: runtimeText(item, settings.mapWeatherColor), zIndex: 40
+    })
+  }
+  return new Style({ stroke: new Stroke({ color: settings.mapWeatherColor, width: 1.5 }),
+    fill: new Fill({ color: hexWithAlpha(settings.mapWeatherFillColor) }),
+    text: runtimeText(item, settings.mapWeatherColor), zIndex: 20 })
+}
+
+function rebuildRuntimeLayers() {
+  Object.values(runtimeSources).forEach(source => source.clear())
+  for (const layer of props.runtimeLayers) {
+    const source = runtimeSources[layer.category]
+    if (!source) continue
+    for (const item of layer.features) {
+      try {
+        const parsed = geoJson.readFeature({ type: 'Feature', geometry: item.geometry, properties: {} }, {
+          dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'
+        })
+        const feature = Array.isArray(parsed) ? parsed[0] : parsed
+        if (!feature) continue
+        feature.set('runtimeFeature', item, true)
+        feature.setId(`runtime:${item.featureId}`)
+        source.addFeature(feature)
+      } catch {
+        // 后端已过滤坏几何；浏览器仍防御性跳过单条异常，避免影响航空器态势。
+      }
+    }
+  }
+}
+
+function updateRuntimeVisibility() {
+  for (const [category, layer] of runtimeVectorLayers.entries()) {
+    layer.setVisible(props.layerVisibility[category])
+  }
+}
+
+function refreshRuntimeStyles() {
+  runtimeVectorLayers.forEach(layer => layer.changed())
+}
+
 onMounted(() => {
   /* 自定义 DragPan：pointerdown 命中标牌时当场拒绝地图拖拽（拖标牌不拖地图） */
   const dragPan = new DragPan({
@@ -201,9 +284,25 @@ onMounted(() => {
   map = new OlMap({
     target: 'situation-map',
     interactions: defaultInteractions({ dragPan: false }).extend([dragPan]),
-    layers: [new VectorLayer({ source })],
+    layers: [],
     view: new View({ center: fromLonLat([116.5, 34]), zoom: 5, minZoom: 2, maxZoom: 14 })
   })
+  const layerOrder: Array<{ category: MapLayerCategory; zIndex: number }> = [
+    { category: 'PHYSICAL_SECTOR', zIndex: 10 }, { category: 'WEATHER', zIndex: 20 },
+    { category: 'AIRWAY', zIndex: 30 }, { category: 'WAYPOINT', zIndex: 40 }
+  ]
+  for (const definition of layerOrder) {
+    const layer = new VectorLayer({
+      source: runtimeSources[definition.category], visible: props.layerVisibility[definition.category],
+      style: feature => runtimeStyle(feature.get('runtimeFeature') as RuntimeMapFeature)
+    })
+    layer.setZIndex(definition.zIndex)
+    runtimeVectorLayers.set(definition.category, layer)
+    map.addLayer(layer)
+  }
+  const aircraftLayer = new VectorLayer({ source: aircraftSource })
+  aircraftLayer.setZIndex(100)
+  map.addLayer(aircraftLayer)
   map.on('singleclick', event => {
     let picked: string | null = null
     map?.forEachFeatureAtPixel(event.pixel, feature => {
@@ -224,13 +323,20 @@ onMounted(() => {
   map.getViewport().addEventListener('pointerdown', onPointerDown)
   document.addEventListener('pointermove', onPointerMove)
   document.addEventListener('pointerup', onPointerUp)
+  rebuildRuntimeLayers()
   redraw()
 })
 watch(() => [props.aircraft, props.selectedId, props.trackColor, props.selectedTrackColor], redraw, { deep: true })
+watch(() => props.runtimeLayers, rebuildRuntimeLayers, { deep: true })
+watch(() => props.layerVisibility, updateRuntimeVisibility, { deep: true })
+watch(() => props.displaySettings, refreshRuntimeStyles, { deep: true })
 onBeforeUnmount(() => {
   document.removeEventListener('pointermove', onPointerMove)
   document.removeEventListener('pointerup', onPointerUp)
   map?.setTarget(undefined)
+  aircraftSource.clear()
+  Object.values(runtimeSources).forEach(source => source.clear())
+  runtimeVectorLayers.clear()
 })
 </script>
 

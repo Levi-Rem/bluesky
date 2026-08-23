@@ -51,7 +51,14 @@ class WorkstationBootstrapApiTest {
                 .andExpect(jsonPath("$.aircraft").isEmpty())
                 .andExpect(jsonPath("$.instructions").isEmpty())
                 .andExpect(jsonPath("$.uiParameters.trackColor").value("#3fae6d"))
-                .andExpect(jsonPath("$.uiParameters.selectedTrackColor").value("#27e58d"));
+                .andExpect(jsonPath("$.uiParameters.selectedTrackColor").value("#27e58d"))
+                .andExpect(jsonPath("$.uiParameters.mapWaypointColor").value("#7FD3FF"))
+                .andExpect(jsonPath("$.uiParameters.mapAirwayColor").value("#4AA8D8"))
+                .andExpect(jsonPath("$.uiParameters.mapSectorColor").value("#D6A7FF"))
+                .andExpect(jsonPath("$.uiParameters.mapSectorFillColor").value("#7B4DB3"))
+                .andExpect(jsonPath("$.uiParameters.mapWeatherColor").value("#FFCF66"))
+                .andExpect(jsonPath("$.uiParameters.mapWeatherFillColor").value("#D9822B"))
+                .andExpect(jsonPath("$.uiParameterDefaults.mapWaypointColor").value("#7FD3FF"));
     }
 
     @Test

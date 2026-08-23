@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>模拟飞行员地图图层与显示设置设计图</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #07141c; color: #dbe9ef; font-family: Consolas, "Microsoft YaHei", monospace; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    .workstation { position: relative; width: 100%; height: 100%; min-width: 960px; min-height: 620px; overflow: hidden; background-color: #07141c; background-image: radial-gradient(#18313a 1px, transparent 1px); background-size: 28px 28px; }
+    .map-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .panel { z-index: 4; border: 1px solid rgba(90, 151, 174, .34); background: rgba(6, 19, 27, .94); box-shadow: 0 5px 20px rgba(0, 0, 0, .25); backdrop-filter: blur(5px); }
+    .top-bar { position: absolute; top: 12px; left: 50%; min-height: 40px; display: flex; align-items: center; gap: 18px; padding: 5px 9px; border-radius: 6px; transform: translateX(-50%); font-size: 14px; }
+    .run { width: 30px; height: 28px; border: 0; border-radius: 4px; background: rgba(53, 166, 110, .25); color: #8ef1b8; cursor: pointer; }
+    .engine { width: 9px; height: 9px; border-radius: 50%; color: #49d58a; background: currentColor; box-shadow: 0 0 8px currentColor; }
+    .settings-trigger { min-height: 28px; padding: 3px 8px; border: 1px solid rgba(90, 151, 174, .3); border-radius: 4px; background: transparent; cursor: pointer; }
+    .settings-trigger:hover, .map-trigger:hover, .action:hover { background: rgba(79, 151, 177, .16); }
+    .left-panel { position: absolute; top: 68px; bottom: 82px; left: 12px; width: 284px; overflow: visible; border-radius: 6px; }
+    .left-actions { position: relative; z-index: 8; display: flex; align-items: center; gap: 5px; padding: 5px; border-bottom: 1px solid rgba(90, 151, 174, .18); background: rgba(6, 19, 27, .98); border-radius: 6px 6px 0 0; }
+    .action, .map-trigger, .collapse { min-height: 29px; padding: 4px 8px; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
+    .action { color: #3fae6d; font-size: 20px; }
+    .map-trigger { display: flex; align-items: center; gap: 5px; color: #b8d1da; font-size: 12px; }
+    .map-trigger[aria-expanded="true"] { color: #eaf8fc; background: rgba(79, 151, 177, .2); }
+    .collapse { margin-left: auto; color: #76909a; font-size: 18px; }
+    .layer-menu { position: absolute; top: 39px; left: 42px; z-index: 12; width: 184px; padding: 6px; border: 1px solid rgba(90, 151, 174, .48); border-radius: 5px; background: #071b24; box-shadow: 0 10px 28px rgba(0, 0, 0, .42); }
+    .layer-menu[hidden] { display: none; }
+    .layer-row { min-height: 34px; display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 7px; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .layer-row:hover { background: rgba(79, 151, 177, .13); }
+    .layer-row input { width: 14px; height: 14px; margin: 0; accent-color: #3fae6d; }
+    .count { color: #78909a; font-size: 11px; }
+    .aircraft-list { height: calc(100% - 40px); overflow: auto; }
+    .aircraft { position: relative; display: grid; gap: 2px; width: 100%; padding: 8px 28px 8px 9px; border: 0; border-bottom: 1px solid rgba(90, 151, 174, .12); background: transparent; color: #3fae6d; text-align: left; cursor: pointer; font-size: 12px; }
+    .aircraft.selected { color: #27e58d; background: rgba(39, 229, 141, .08); }
+    .restore { position: absolute; top: 50%; left: 0; z-index: 5; width: 25px; height: 44px; border: 1px solid rgba(90, 151, 174, .34); border-left: 0; border-radius: 0 5px 5px 0; background: rgba(6, 19, 27, .9); color: #8ba3ac; cursor: pointer; }
+    .restore[hidden], .left-panel[hidden] { display: none; }
+    .command { position: absolute; bottom: 14px; left: 50%; z-index: 4; display: flex; gap: 7px; transform: translateX(-50%); }
+    .command input { width: min(46vw, 620px); height: 39px; padding: 0 12px; color: #edf7fa; border: 1px solid rgba(90, 151, 174, .5); border-radius: 5px; outline: none; background: rgba(5, 17, 24, .94); text-transform: uppercase; }
+    .queue { min-width: 120px; height: 39px; display: grid; place-items: center; padding: 0 10px; border-radius: 5px; color: #7f9ca5; font-size: 11px; }
+    .settings-mask { position: absolute; inset: 0; z-index: 19; display: grid; place-items: center; background: rgba(1, 7, 10, .42); }
+    .settings-mask[hidden] { display: none; }
+    .settings { width: 570px; padding: 14px; border-radius: 7px; }
+    .settings-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(90, 151, 174, .25); }
+    .settings-head strong { font-size: 14px; letter-spacing: 1px; }
+    .close { border: 0; background: transparent; color: #78909a; cursor: pointer; }
+    .group-title { margin: 12px 0 7px; color: #9bb6bf; font-size: 11px; letter-spacing: 1px; }
+    .color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+    .color-field { display: grid; grid-template-columns: 1fr 30px 84px; align-items: center; gap: 7px; color: #abc1c9; font-size: 11px; }
+    .color-field input[type="color"] { width: 30px; height: 26px; padding: 1px; border: 1px solid #31515d; border-radius: 3px; background: #081921; }
+    .color-field input[type="text"] { width: 84px; height: 27px; padding: 3px 5px; border: 1px solid #284550; border-radius: 3px; background: #081921; color: #e5f2f6; font-size: 11px; text-transform: uppercase; }
+    .alpha-note { color: #78909a; font-size: 10px; }
+    .settings-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 15px; }
+    .settings-actions button { min-height: 30px; padding: 5px 12px; border: 1px solid #31515d; border-radius: 4px; background: #0b222c; color: #c7dce3; cursor: pointer; }
+    .settings-actions .defaults { margin-right: auto; }
+    .settings-actions .save { border-color: #2b9563; background: rgba(43, 149, 99, .26); color: #9df1c2; }
+    .map-label { paint-order: stroke; stroke: #07141c; stroke-width: 3px; stroke-linejoin: round; font-size: 12px; font-weight: 500; }
+    .layer { transition: opacity .12s ease; }
+    .layer.off { opacity: 0; pointer-events: none; }
+    .aircraft-mark { fill: #3fae6d; stroke: #07141c; stroke-width: 2px; }
+    .aircraft-text { fill: #3fae6d; font-size: 12px; paint-order: stroke; stroke: #07141c; stroke-width: 3px; }
+  </style>
+</head>
+<body>
+  <main class="workstation">
+    <svg class="map-art" viewBox="0 0 1440 900" role="img" aria-label="四类地图图层叠加效果图">
+      <g id="sector-layer" class="layer off">
+        <path id="sector-shape" d="M390 220 L780 170 L1030 360 L850 645 L470 590 Z" fill="#7b4db3" fill-opacity=".2" stroke="#d6a7ff" stroke-width="2"/>
+        <text id="sector-text" class="map-label" x="720" y="405" fill="#d6a7ff">上海进近01</text>
+      </g>
+      <g id="weather-layer" class="layer off">
+        <path id="weather-shape" d="M870 250 C970 205 1095 260 1115 350 C1128 430 1025 495 930 450 C850 410 815 305 870 250 Z" fill="#d9822b" fill-opacity=".2" stroke="#ffcf66" stroke-width="2"/>
+        <text id="weather-text" class="map-label" x="940" y="350" fill="#ffcf66">SIGMET-SH-01</text>
+        <path id="wind-symbol" d="M530 310 l28 -22 M544 299 l-12 -8 M551 293 l-12 -8" fill="none" stroke="#ffcf66" stroke-width="2"/>
+        <text id="wind-text" class="map-label" x="563" y="289" fill="#ffcf66">WIND-SH-01</text>
+      </g>
+      <g id="airway-layer" class="layer off">
+        <path id="airway-shape" d="M350 670 L520 540 L690 475 L880 390 L1090 205" fill="none" stroke="#4aa8d8" stroke-width="2"/>
+        <text id="airway-text" class="map-label" x="712" y="460" fill="#4aa8d8">A593</text>
+      </g>
+      <g id="waypoint-layer" class="layer off">
+        <g fill="#07141c" stroke="#7fd3ff" stroke-width="2">
+          <circle cx="350" cy="670" r="6"/><circle cx="520" cy="540" r="6"/><circle cx="690" cy="475" r="6"/><circle cx="880" cy="390" r="6"/><circle cx="1090" cy="205" r="6"/>
+        </g>
+        <g id="waypoint-text" class="map-label" fill="#7fd3ff">
+          <text x="361" y="657">PUD</text><text x="531" y="527">SASAN</text><text x="701" y="462">AND</text><text x="891" y="377">BUNTA</text><text x="1101" y="192">ZBAA</text>
+        </g>
+      </g>
+      <g>
+        <path d="M760 545 L825 510" stroke="#3fae6d" stroke-width="1.5"/>
+        <path class="aircraft-mark" d="M760 532 L770 555 L760 551 L750 555 Z"/>
+        <text class="aircraft-text" x="830" y="492">CES123  4321 A320 M</text>
+        <text class="aircraft-text" x="830" y="509">9000  250  045  0000</text>
+        <text class="aircraft-text" x="830" y="526">ZSPD  ZBAA  HDG045</text>
+      </g>
+    </svg>
+
+    <header class="top-bar panel">
+      <button class="run" aria-label="开始训练">▶</button>
+      <time>00:18:42</time>
+      <span>3/3</span>
+      <span class="engine" aria-label="引擎已连接"></span>
+      <button id="settings-trigger" class="settings-trigger">显示设置</button>
+      <button class="collapse" aria-label="折叠状态栏">‹</button>
+    </header>
+
+    <aside id="left-panel" class="left-panel panel">
+      <div class="left-actions">
+        <button class="action" aria-label="创建航空器">＋</button>
+        <button id="map-trigger" class="map-trigger" aria-expanded="false" aria-controls="layer-menu">⌖ 地图 <span>▾</span></button>
+        <button id="collapse-left" class="collapse" aria-label="隐藏航空器列表和地图控件">‹</button>
+        <div id="layer-menu" class="layer-menu" hidden>
+          <label class="layer-row"><input data-layer="waypoint" type="checkbox"><span>航路点</span><span class="count">23</span></label>
+          <label class="layer-row"><input data-layer="airway" type="checkbox"><span>航线</span><span class="count">8</span></label>
+          <label class="layer-row"><input data-layer="sector" type="checkbox"><span>扇区</span><span class="count">4</span></label>
+          <label class="layer-row"><input data-layer="weather" type="checkbox"><span>天气</span><span class="count">6</span></label>
+        </div>
+      </div>
+      <div class="aircraft-list">
+        <button class="aircraft selected"><span>CES123 A320 ZSPD/ZBAA</span><span>PUD A593 AND HDG045</span></button>
+        <button class="aircraft"><span>CCA987 B738 ZSSS/ZBAA</span><span>SASAN A461 BUNTA</span></button>
+        <button class="aircraft"><span>CSN661 A321 ZSPD/ZGGG</span><span>PUD H24 GYA</span></button>
+      </div>
+    </aside>
+    <button id="restore-left" class="restore" aria-label="展开航空器列表和地图控件" hidden>›</button>
+
+    <section class="command">
+      <input value="" placeholder="CES123" aria-label="航空器指令">
+      <div class="queue panel">HDG045</div>
+    </section>
+
+    <div id="settings-mask" class="settings-mask" hidden>
+      <section class="settings panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="settings-head"><strong id="settings-title">显示设置</strong><button id="settings-close" class="close" aria-label="关闭显示设置">×</button></div>
+        <div class="group-title">航迹</div>
+        <div class="color-grid">
+          <label class="color-field"><span>普通航迹</span><input data-color="track" type="color" value="#3fae6d"><input data-text="track" type="text" value="#3FAE6D"></label>
+          <label class="color-field"><span>选中航迹</span><input data-color="selectedTrack" type="color" value="#27e58d"><input data-text="selectedTrack" type="text" value="#27E58D"></label>
+        </div>
+        <div class="group-title">地图图层</div>
+        <div class="color-grid">
+          <label class="color-field"><span>航路点</span><input data-color="waypoint" type="color" value="#7fd3ff"><input data-text="waypoint" type="text" value="#7FD3FF"></label>
+          <label class="color-field"><span>航线</span><input data-color="airway" type="color" value="#4aa8d8"><input data-text="airway" type="text" value="#4AA8D8"></label>
+          <label class="color-field"><span>扇区边界/文字</span><input data-color="sector" type="color" value="#d6a7ff"><input data-text="sector" type="text" value="#D6A7FF"></label>
+          <label class="color-field"><span>扇区填充 <span class="alpha-note">20%</span></span><input data-color="sectorFill" type="color" value="#7b4db3"><input data-text="sectorFill" type="text" value="#7B4DB3"></label>
+          <label class="color-field"><span>天气边界/文字</span><input data-color="weather" type="color" value="#ffcf66"><input data-text="weather" type="text" value="#FFCF66"></label>
+          <label class="color-field"><span>天气填充 <span class="alpha-note">20%</span></span><input data-color="weatherFill" type="color" value="#d9822b"><input data-text="weatherFill" type="text" value="#D9822B"></label>
+        </div>
+        <div class="settings-actions">
+          <button id="defaults" class="defaults">恢复默认</button>
+          <button id="cancel-settings">取消</button>
+          <button id="save-settings" class="save">保存</button>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const menu = document.getElementById('layer-menu');
+    const mapTrigger = document.getElementById('map-trigger');
+    const leftPanel = document.getElementById('left-panel');
+    const restoreLeft = document.getElementById('restore-left');
+    const settingsMask = document.getElementById('settings-mask');
+    const defaults = { track: '#3FAE6D', selectedTrack: '#27E58D', waypoint: '#7FD3FF', airway: '#4AA8D8', sector: '#D6A7FF', sectorFill: '#7B4DB3', weather: '#FFCF66', weatherFill: '#D9822B' };
+    let saved = { ...defaults };
+
+    function toggleMenu(force) {
+      const open = force === undefined ? menu.hidden : force;
+      menu.hidden = !open;
+      mapTrigger.setAttribute('aria-expanded', String(open));
+    }
+    mapTrigger.addEventListener('click', event => { event.stopPropagation(); toggleMenu(); });
+    menu.addEventListener('click', event => event.stopPropagation());
+    document.addEventListener('click', () => toggleMenu(false));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') { toggleMenu(false); if (!settingsMask.hidden) closeSettings(false); } });
+    document.querySelectorAll('[data-layer]').forEach(input => input.addEventListener('change', () => {
+      document.getElementById(`${input.dataset.layer}-layer`).classList.toggle('off', !input.checked);
+    }));
+    document.getElementById('collapse-left').addEventListener('click', () => { toggleMenu(false); leftPanel.hidden = true; restoreLeft.hidden = false; });
+    restoreLeft.addEventListener('click', () => { leftPanel.hidden = false; restoreLeft.hidden = true; });
+
+    function setSvgColor(key, value) {
+      const lower = value.toLowerCase();
+      if (key === 'track') document.querySelectorAll('.aircraft-mark, .aircraft-text').forEach(node => node.setAttribute(node.tagName === 'text' ? 'fill' : 'fill', lower));
+      if (key === 'waypoint') {
+        document.querySelectorAll('#waypoint-layer circle').forEach(node => node.setAttribute('stroke', lower));
+        document.getElementById('waypoint-text').setAttribute('fill', lower);
+      }
+      if (key === 'airway') { document.getElementById('airway-shape').setAttribute('stroke', lower); document.getElementById('airway-text').setAttribute('fill', lower); }
+      if (key === 'sector') { document.getElementById('sector-shape').setAttribute('stroke', lower); document.getElementById('sector-text').setAttribute('fill', lower); }
+      if (key === 'sectorFill') document.getElementById('sector-shape').setAttribute('fill', lower);
+      if (key === 'weather') {
+        document.getElementById('weather-shape').setAttribute('stroke', lower); document.getElementById('weather-text').setAttribute('fill', lower);
+        document.getElementById('wind-symbol').setAttribute('stroke', lower); document.getElementById('wind-text').setAttribute('fill', lower);
+      }
+      if (key === 'weatherFill') document.getElementById('weather-shape').setAttribute('fill', lower);
+    }
+    function apply(values) {
+      Object.entries(values).forEach(([key, value]) => {
+        const color = document.querySelector(`[data-color="${key}"]`);
+        const text = document.querySelector(`[data-text="${key}"]`);
+        if (color) color.value = value.toLowerCase();
+        if (text) text.value = value.toUpperCase();
+        setSvgColor(key, value);
+      });
+    }
+    function current() {
+      return Object.fromEntries(Object.keys(defaults).map(key => [key, document.querySelector(`[data-text="${key}"]`).value.toUpperCase()]));
+    }
+    function openSettings() { toggleMenu(false); apply(saved); settingsMask.hidden = false; document.querySelector('[data-color="track"]').focus(); }
+    function closeSettings(keep) { if (!keep) apply(saved); settingsMask.hidden = true; document.getElementById('settings-trigger').focus(); }
+    document.getElementById('settings-trigger').addEventListener('click', openSettings);
+    document.getElementById('settings-close').addEventListener('click', () => closeSettings(false));
+    document.getElementById('cancel-settings').addEventListener('click', () => closeSettings(false));
+    document.getElementById('defaults').addEventListener('click', () => apply(defaults));
+    document.getElementById('save-settings').addEventListener('click', () => { saved = current(); closeSettings(true); });
+    document.querySelectorAll('[data-color]').forEach(input => input.addEventListener('input', () => {
+      const key = input.dataset.color; const value = input.value.toUpperCase(); document.querySelector(`[data-text="${key}"]`).value = value; setSvgColor(key, value);
+    }));
+    document.querySelectorAll('[data-text]').forEach(input => input.addEventListener('change', () => {
+      const value = input.value.trim(); if (!/^#[0-9A-Fa-f]{6}$/.test(value)) return; const key = input.dataset.text; document.querySelector(`[data-color="${key}"]`).value = value.toLowerCase(); input.value = value.toUpperCase(); setSvgColor(key, value);
+    }));
+  </script>
+</body>
+</html>

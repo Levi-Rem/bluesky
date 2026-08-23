@@ -53,15 +53,56 @@ export interface ReferenceItem {
   longitude?: number | null
 }
 
+export type MapLayerCategory = 'WAYPOINT' | 'AIRWAY' | 'PHYSICAL_SECTOR' | 'WEATHER'
+export type MapFeatureType = MapLayerCategory | 'WIND_FIELD_POINT' | 'SIGNIFICANT_WEATHER_AREA'
+
+export interface GeoJsonGeometry {
+  type: 'Point' | 'LineString' | 'Polygon' | 'MultiPolygon'
+  coordinates: unknown
+}
+
+export interface RuntimeMapFeature {
+  featureId: string
+  featureType: MapFeatureType
+  code: string | null
+  name: string | null
+  geometry: GeoJsonGeometry
+}
+
+export interface RuntimeMapLayer {
+  category: MapLayerCategory
+  name: string
+  count: number
+  features: RuntimeMapFeature[]
+}
+
+export interface MapLayersResponse {
+  available: boolean
+  revision: number | null
+  layers: RuntimeMapLayer[]
+}
+
+export interface DisplaySettings {
+  trackColor: string
+  selectedTrackColor: string
+  mapWaypointColor: string
+  mapAirwayColor: string
+  mapSectorColor: string
+  mapSectorFillColor: string
+  mapWeatherColor: string
+  mapWeatherFillColor: string
+}
+
+export type MapLayerVisibility = Record<MapLayerCategory, boolean>
+
 export interface Bootstrap {
   terminal: { id: string; name: string }
   exerciseGroup: ExerciseGroup
   engine: EngineState
   aircraft: Aircraft[]
   instructions: Instruction[]
-  uiParameters: {
+  uiParameters: DisplaySettings & {
     theme: string
-    trackColor: string
-    selectedTrackColor: string
   }
+  uiParameterDefaults: DisplaySettings
 }

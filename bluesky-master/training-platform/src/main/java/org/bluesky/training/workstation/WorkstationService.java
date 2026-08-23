@@ -4,6 +4,8 @@ import org.bluesky.training.adapter.EngineHealth;
 import org.bluesky.training.adapter.SimulationGateway;
 import org.bluesky.training.aircraft.AircraftService;
 import org.bluesky.training.instruction.InstructionResponse;
+import org.bluesky.training.display.DisplaySettingsService;
+import org.bluesky.training.display.DisplaySettingsView;
 import org.bluesky.training.persistence.BootstrapMapper;
 import org.bluesky.training.persistence.ExerciseGroupRow;
 import org.bluesky.training.persistence.InstructionMapper;
@@ -20,13 +22,16 @@ public class WorkstationService {
     private final SimulationGateway simulationGateway;
     private final AircraftService aircraftService;
     private final InstructionMapper instructionMapper;
+    private final DisplaySettingsService displaySettingsService;
 
     public WorkstationService(BootstrapMapper bootstrapMapper, SimulationGateway simulationGateway,
-                              AircraftService aircraftService, InstructionMapper instructionMapper) {
+                              AircraftService aircraftService, InstructionMapper instructionMapper,
+                              DisplaySettingsService displaySettingsService) {
         this.bootstrapMapper = bootstrapMapper;
         this.simulationGateway = simulationGateway;
         this.aircraftService = aircraftService;
         this.instructionMapper = instructionMapper;
+        this.displaySettingsService = displaySettingsService;
     }
 
     public WorkstationBootstrapResponse bootstrap() {
@@ -34,6 +39,7 @@ public class WorkstationService {
         ExerciseGroupRow group = bootstrapMapper.findDefaultGroup();
         EngineHealth engineHealth = simulationGateway.health();
         Map<String, String> parameters = parametersByKey(bootstrapMapper.findUiParameters());
+        DisplaySettingsView displaySettings = displaySettingsService.fromParameters(parameters);
 
         return new WorkstationBootstrapResponse(
                 new WorkstationBootstrapResponse.TerminalView(terminal.getId(), terminal.getName()),
@@ -41,9 +47,8 @@ public class WorkstationService {
                         group.getId(), group.getName(), group.getState(), group.getSimulationTimeSeconds()),
                 engineHealth,
                 new WorkstationBootstrapResponse.UiParametersView(
-                        parameters.get("ui.theme"),
-                        parameters.get("ui.trackColor"),
-                        parameters.get("ui.selectedTrackColor")),
+                        parameters.get("ui.theme"), displaySettings),
+                displaySettingsService.defaults(),
                 aircraftService.list("GROUP-DEFAULT"),
                 instructionMapper.findAllDefaultGroup().stream()
                         .map(InstructionResponse::new)

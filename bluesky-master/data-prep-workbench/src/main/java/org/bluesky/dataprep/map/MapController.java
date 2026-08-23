@@ -15,9 +15,11 @@ import java.util.Map;
 public class MapController {
 
     private final MapService mapService;
+    private final RuntimeMapService runtimeMapService;
 
-    public MapController(MapService mapService) {
+    public MapController(MapService mapService, RuntimeMapService runtimeMapService) {
         this.mapService = mapService;
+        this.runtimeMapService = runtimeMapService;
     }
 
     @GetMapping("/layers")
@@ -25,6 +27,11 @@ public class MapController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("layers", mapService.layers());
         return body;
+    }
+
+    @GetMapping("/runtime-layers")
+    public Map<String, Object> runtimeLayers() {
+        return runtimeMapService.snapshot();
     }
 
     @PutMapping("/features")

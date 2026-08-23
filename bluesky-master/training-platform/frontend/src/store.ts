@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from './api'
-import type { Aircraft, Bootstrap, EngineState, ExerciseGroup, Instruction } from './types'
+import type { Aircraft, Bootstrap, DisplaySettings, EngineState, ExerciseGroup, Instruction, MapLayerVisibility, RuntimeMapLayer } from './types'
 
 export const useWorkstationStore = defineStore('workstation', () => {
   const bootstrap = ref<Bootstrap | null>(null)
@@ -9,6 +9,12 @@ export const useWorkstationStore = defineStore('workstation', () => {
   const instructions = ref<Instruction[]>([])
   const error = ref('')
   const loading = ref(false)
+  const mapDataAvailable = ref(false)
+  const mapLayers = ref<RuntimeMapLayer[]>([])
+  const mapLayerVisibility = ref<MapLayerVisibility>({
+    WAYPOINT: false, AIRWAY: false, PHYSICAL_SECTOR: false, WEATHER: false
+  })
+  let mapLayersPromise: Promise<void> | null = null
   let events: EventSource | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let reconnectAttempt = 0
@@ -39,6 +45,28 @@ export const useWorkstationStore = defineStore('workstation', () => {
       error.value = `工作台已加载，状态连接失败：${reason instanceof Error ? reason.message : String(reason)}`
       scheduleReconnect()
     }
+  }
+
+  function loadMapLayersOnce() {
+    if (mapLayersPromise) return mapLayersPromise
+    mapLayersPromise = api.mapLayers().then(response => {
+      mapDataAvailable.value = response.available
+      mapLayers.value = response.available ? response.layers : []
+    }).catch(() => {
+      mapDataAvailable.value = false
+      mapLayers.value = []
+    })
+    return mapLayersPromise
+  }
+
+  function setMapLayerVisible(category: keyof MapLayerVisibility, visible: boolean) {
+    mapLayerVisibility.value[category] = visible
+  }
+
+  async function saveDisplaySettings(settings: DisplaySettings) {
+    const saved = await api.saveDisplaySettings(settings)
+    if (bootstrap.value) bootstrap.value.uiParameters = { ...bootstrap.value.uiParameters, ...saved }
+    return saved
   }
 
   function connectEvents() {
@@ -149,6 +177,8 @@ export const useWorkstationStore = defineStore('workstation', () => {
 
   return {
     bootstrap, aircraft, selectedAircraft, selectedAircraftId, instructions, error, loading,
-    load, loadInstructions, selectAircraft, deleteAircraft, upsertAircraft, upsertInstruction, updateEngine
+    mapDataAvailable, mapLayers, mapLayerVisibility,
+    load, loadMapLayersOnce, setMapLayerVisible, saveDisplaySettings,
+    loadInstructions, selectAircraft, deleteAircraft, upsertAircraft, upsertInstruction, updateEngine
   }
 })

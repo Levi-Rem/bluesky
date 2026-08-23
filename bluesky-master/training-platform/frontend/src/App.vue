@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import SituationMap from './SituationMap.vue'
 import CreateAircraftDialog from './CreateAircraftDialog.vue'
+import MapLayerMenu from './MapLayerMenu.vue'
+import DisplaySettingsDialog from './DisplaySettingsDialog.vue'
 import { insertionForEnter } from './commandKeys'
 import { arrangeInstructionQueue } from './instructionQueue'
 import { api } from './api'
 import { useWorkstationStore } from './store'
+import type { DisplaySettings, MapLayerCategory } from './types'
 
 const store = useWorkstationStore()
 const topHidden = ref(false)
@@ -14,12 +17,21 @@ const command = ref('')
 const commandError = ref('')
 const busy = ref(false)
 const deletingId = ref<string | null>(null)
+const settingsOpen = ref(false)
+const settingsBusy = ref(false)
+const settingsError = ref('')
+const previewSettings = ref<DisplaySettings | null>(null)
 
 const group = computed(() => store.bootstrap?.exerciseGroup)
 const engine = computed(() => store.bootstrap?.engine)
-const colors = computed(() => store.bootstrap?.uiParameters ?? {
-  trackColor: '#3fae6d', selectedTrackColor: '#27e58d'
-})
+const fallbackSettings: DisplaySettings = {
+  trackColor: '#3fae6d', selectedTrackColor: '#27e58d', mapWaypointColor: '#7fd3ff',
+  mapAirwayColor: '#4aa8d8', mapSectorColor: '#d6a7ff', mapSectorFillColor: '#7b4db3',
+  mapWeatherColor: '#ffcf66', mapWeatherFillColor: '#d9822b'
+}
+const colors = computed(() => previewSettings.value ?? store.bootstrap?.uiParameters ?? fallbackSettings)
+const savedSettings = computed<DisplaySettings>(() => store.bootstrap?.uiParameters ?? fallbackSettings)
+const defaultSettings = computed<DisplaySettings>(() => store.bootstrap?.uiParameterDefaults ?? fallbackSettings)
 const arrangedInstructions = computed(() => arrangeInstructionQueue(store.instructions))
 
 function formatTime(seconds = 0) {
@@ -69,7 +81,38 @@ async function deleteAircraft(id: string) {
   }
 }
 
-onMounted(() => store.load())
+function toggleMapLayer(category: MapLayerCategory, visible: boolean) {
+  store.setMapLayerVisible(category, visible)
+}
+
+function openDisplaySettings() {
+  settingsError.value = ''
+  previewSettings.value = { ...savedSettings.value }
+  settingsOpen.value = true
+}
+
+async function saveSettings(settings: DisplaySettings) {
+  settingsBusy.value = true
+  settingsError.value = ''
+  try {
+    const saved = await store.saveDisplaySettings(settings)
+    previewSettings.value = { ...saved }
+    settingsOpen.value = false
+  } catch (reason) {
+    settingsError.value = reason instanceof Error ? reason.message : String(reason)
+  } finally {
+    settingsBusy.value = false
+  }
+}
+
+watch(() => store.bootstrap?.uiParameters, value => {
+  if (value && !settingsOpen.value) previewSettings.value = { ...value }
+}, { deep: true })
+
+onMounted(() => {
+  void store.loadMapLayersOnce()
+  void store.load()
+})
 </script>
 
 <template>
@@ -79,6 +122,8 @@ onMounted(() => store.load())
   }">
     <SituationMap :aircraft="store.aircraft" :selected-id="store.selectedAircraftId"
       :track-color="colors.trackColor" :selected-track-color="colors.selectedTrackColor"
+      :runtime-layers="store.mapLayers" :layer-visibility="store.mapLayerVisibility"
+      :display-settings="colors"
       @select="store.selectAircraft" />
 
     <header v-if="!topHidden" class="top-bar panel">
@@ -88,13 +133,18 @@ onMounted(() => store.load())
       <time>{{ formatTime(group?.simulationTimeSeconds) }}</time>
       <span>{{ store.aircraft.length }}/{{ store.aircraft.length }}</span>
       <span class="engine-light" :class="engine?.connected ? 'connected' : 'disconnected'" :title="engine?.message" />
+      <button class="display-settings-trigger" title="显示设置" @click="openDisplaySettings">显示设置</button>
       <button class="collapse" title="折叠状态栏" @click="topHidden = true">‹</button>
     </header>
     <button v-else class="restore top-restore" title="展开状态栏" @click="topHidden = false">›</button>
 
     <aside v-if="!leftHidden" class="aircraft-list panel">
       <div class="aircraft-list-actions">
-        <CreateAircraftDialog :disabled="!engine?.connected" @created="store.load" />
+        <div class="aircraft-list-primary-actions">
+          <CreateAircraftDialog :disabled="!engine?.connected" @created="store.load" />
+          <MapLayerMenu :available="store.mapDataAvailable" :layers="store.mapLayers"
+            :visibility="store.mapLayerVisibility" @toggle="toggleMapLayer" />
+        </div>
         <button class="collapse" title="隐藏航空器列表" @click="leftHidden = true">‹</button>
       </div>
       <div v-for="item in store.aircraft" :key="item.id" class="aircraft-row-wrap"
@@ -122,6 +172,10 @@ onMounted(() => store.load())
     </section>
 
     <div v-if="store.error || commandError" class="connection-note">{{ store.error || commandError }}</div>
+
+    <DisplaySettingsDialog :open="settingsOpen" :saved="savedSettings" :defaults="defaultSettings"
+      :busy="settingsBusy" :error="settingsError" @preview="previewSettings = $event"
+      @save="saveSettings" @close="settingsOpen = false" />
   </main>
   <div v-else class="loading">
     <span>{{ store.error || '正在连接仿真平台…' }}</span>

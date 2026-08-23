@@ -1,4 +1,4 @@
-import type { Bootstrap, ExerciseGroup, Instruction, ReferenceItem } from './types'
+import type { Bootstrap, DisplaySettings, ExerciseGroup, Instruction, MapLayersResponse, ReferenceItem } from './types'
 import type { InsertionMode } from './commandKeys'
 
 export interface ApiFieldError {
@@ -38,6 +38,11 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   bootstrap: () => json<Bootstrap>('/api/v1/workstation/bootstrap'),
+  mapLayers: () => json<MapLayersResponse>('/api/v1/workstation/map-layers'),
+  saveDisplaySettings: (payload: DisplaySettings) =>
+    json<DisplaySettings>('/api/v1/workstation/display-settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    }),
   start: () => json<ExerciseGroup>('/api/v1/exercise-groups/GROUP-DEFAULT/start', { method: 'POST' }),
   pause: () => json<ExerciseGroup>('/api/v1/exercise-groups/GROUP-DEFAULT/pause', { method: 'POST' }),
   resume: () => json<ExerciseGroup>('/api/v1/exercise-groups/GROUP-DEFAULT/resume', { method: 'POST' }),

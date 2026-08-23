@@ -28,6 +28,10 @@ mybatis:
     map-underscore-to-camel-case: true
 
 bluesky:
+  data-prep:
+    base-url: ${BS_PREP_BASE_URL:http://127.0.0.1:8090}
+    connect-timeout-millis: ${BS_PREP_CONNECT_TIMEOUT_MS:1000}
+    read-timeout-millis: ${BS_PREP_READ_TIMEOUT_MS:2000}
   adapter:
     control-endpoint: ${BS_ADAPTER_CONTROL_ENDPOINT:tcp://127.0.0.1:5555}
     state-endpoint: ${BS_ADAPTER_STATE_ENDPOINT:tcp://127.0.0.1:5556}

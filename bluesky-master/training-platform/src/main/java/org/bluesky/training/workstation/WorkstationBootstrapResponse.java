@@ -2,6 +2,7 @@ package org.bluesky.training.workstation;
 
 import org.bluesky.training.adapter.EngineHealth;
 import org.bluesky.training.instruction.InstructionResponse;
+import org.bluesky.training.display.DisplaySettingsView;
 
 import java.util.List;
 
@@ -12,11 +13,13 @@ public final class WorkstationBootstrapResponse {
     private final List<?> aircraft;
     private final List<InstructionResponse> instructions;
     private final UiParametersView uiParameters;
+    private final DisplaySettingsView uiParameterDefaults;
 
     public WorkstationBootstrapResponse(TerminalView terminal,
                                         ExerciseGroupView exerciseGroup,
                                         EngineHealth engine,
                                         UiParametersView uiParameters,
+                                        DisplaySettingsView uiParameterDefaults,
                                         List<?> aircraft,
                                         List<InstructionResponse> instructions) {
         this.terminal = terminal;
@@ -25,6 +28,7 @@ public final class WorkstationBootstrapResponse {
         this.aircraft = aircraft;
         this.instructions = instructions;
         this.uiParameters = uiParameters;
+        this.uiParameterDefaults = uiParameterDefaults;
     }
 
     public TerminalView getTerminal() {
@@ -49,6 +53,10 @@ public final class WorkstationBootstrapResponse {
 
     public UiParametersView getUiParameters() {
         return uiParameters;
+    }
+
+    public DisplaySettingsView getUiParameterDefaults() {
+        return uiParameterDefaults;
     }
 
     public static final class TerminalView {
@@ -103,11 +111,23 @@ public final class WorkstationBootstrapResponse {
         private final String theme;
         private final String trackColor;
         private final String selectedTrackColor;
+        private final String mapWaypointColor;
+        private final String mapAirwayColor;
+        private final String mapSectorColor;
+        private final String mapSectorFillColor;
+        private final String mapWeatherColor;
+        private final String mapWeatherFillColor;
 
-        public UiParametersView(String theme, String trackColor, String selectedTrackColor) {
+        public UiParametersView(String theme, DisplaySettingsView settings) {
             this.theme = theme;
-            this.trackColor = trackColor;
-            this.selectedTrackColor = selectedTrackColor;
+            this.trackColor = settings.getTrackColor();
+            this.selectedTrackColor = settings.getSelectedTrackColor();
+            this.mapWaypointColor = settings.getMapWaypointColor();
+            this.mapAirwayColor = settings.getMapAirwayColor();
+            this.mapSectorColor = settings.getMapSectorColor();
+            this.mapSectorFillColor = settings.getMapSectorFillColor();
+            this.mapWeatherColor = settings.getMapWeatherColor();
+            this.mapWeatherFillColor = settings.getMapWeatherFillColor();
         }
 
         public String getTheme() {
@@ -121,5 +141,12 @@ public final class WorkstationBootstrapResponse {
         public String getSelectedTrackColor() {
             return selectedTrackColor;
         }
+
+        public String getMapWaypointColor() { return mapWaypointColor; }
+        public String getMapAirwayColor() { return mapAirwayColor; }
+        public String getMapSectorColor() { return mapSectorColor; }
+        public String getMapSectorFillColor() { return mapSectorFillColor; }
+        public String getMapWeatherColor() { return mapWeatherColor; }
+        public String getMapWeatherFillColor() { return mapWeatherFillColor; }
     }
 }

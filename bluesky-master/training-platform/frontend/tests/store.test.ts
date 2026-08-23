@@ -14,7 +14,8 @@ class FakeEventSource {
 }
 
 const apiMock = vi.hoisted(() => ({
-  bootstrap: vi.fn(), instructions: vi.fn(), deleteAircraft: vi.fn()
+  bootstrap: vi.fn(), instructions: vi.fn(), deleteAircraft: vi.fn(),
+  mapLayers: vi.fn(), saveDisplaySettings: vi.fn()
 }))
 
 vi.mock('../src/api', () => ({ api: apiMock }))
@@ -61,6 +62,28 @@ describe('workstation instruction projection', () => {
     expect(store.loading).toBe(false)
     expect(store.bootstrap).toBeNull()
     expect(store.error).toBe('平台不可用')
+  })
+
+  it('loads the map snapshot at most once per store session', async () => {
+    apiMock.mapLayers.mockResolvedValue({ available: true, revision: 1, layers: [] })
+    const store = useWorkstationStore()
+
+    await Promise.all([store.loadMapLayersOnce(), store.loadMapLayersOnce()])
+    await store.loadMapLayersOnce()
+
+    expect(apiMock.mapLayers).toHaveBeenCalledTimes(1)
+    expect(store.mapDataAvailable).toBe(true)
+  })
+
+  it('silently disables map data when the snapshot request fails', async () => {
+    apiMock.mapLayers.mockRejectedValue(new Error('数据准备服务不可用'))
+    const store = useWorkstationStore()
+
+    await store.loadMapLayersOnce()
+
+    expect(store.mapDataAvailable).toBe(false)
+    expect(store.mapLayers).toEqual([])
+    expect(store.error).toBe('')
   })
 
   it('restores the selected aircraft queue directly from a snapshot', async () => {
@@ -142,6 +165,15 @@ function bootstrapWithAircraft(): Bootstrap {
       altitudeFeet: 9000, speedKnots: 250, verticalSpeedFeetPerMinute: 0, route: ['ZBAA']
     })),
     instructions: [],
-    uiParameters: { theme: 'DEFAULT_DARK', trackColor: '#fff', selectedTrackColor: '#ff0' }
+    uiParameters: {
+      theme: 'DEFAULT_DARK', trackColor: '#ffffff', selectedTrackColor: '#ffff00',
+      mapWaypointColor: '#7fd3ff', mapAirwayColor: '#4aa8d8', mapSectorColor: '#d6a7ff',
+      mapSectorFillColor: '#7b4db3', mapWeatherColor: '#ffcf66', mapWeatherFillColor: '#d9822b'
+    },
+    uiParameterDefaults: {
+      trackColor: '#3fae6d', selectedTrackColor: '#27e58d', mapWaypointColor: '#7fd3ff',
+      mapAirwayColor: '#4aa8d8', mapSectorColor: '#d6a7ff', mapSectorFillColor: '#7b4db3',
+      mapWeatherColor: '#ffcf66', mapWeatherFillColor: '#d9822b'
+    }
   }
 }
