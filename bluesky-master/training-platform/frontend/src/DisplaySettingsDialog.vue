@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { DisplaySettings } from './types'
+import { copyDisplaySettings } from './displaySettings'
 
 const props = defineProps<{
   open: boolean
@@ -26,12 +27,12 @@ const fields: Array<{ key: keyof DisplaySettings; label: string; group: 'track' 
   { key: 'mapWeatherColor', label: '天气边界/文字', group: 'map' },
   { key: 'mapWeatherFillColor', label: '天气填充', group: 'map', note: '20%' }
 ]
-const draft = reactive<DisplaySettings>({ ...props.saved })
+const draft = reactive<DisplaySettings>(copyDisplaySettings(props.saved))
 const valid = computed(() => fields.every(field => /^#[0-9a-fA-F]{6}$/.test(draft[field.key])))
 
 watch(() => props.open, async open => {
   if (open) {
-    Object.assign(draft, props.saved)
+    Object.assign(draft, copyDisplaySettings(props.saved))
     await nextTick()
     focusableElements()[0]?.focus()
   }
@@ -39,19 +40,19 @@ watch(() => props.open, async open => {
 
 function update(key: keyof DisplaySettings, value: string) {
   draft[key] = value.toUpperCase()
-  if (/^#[0-9a-fA-F]{6}$/.test(draft[key])) emit('preview', { ...draft })
+  if (/^#[0-9a-fA-F]{6}$/.test(draft[key])) emit('preview', copyDisplaySettings(draft))
 }
 function resetDefaults() {
-  Object.assign(draft, props.defaults)
-  emit('preview', { ...draft })
+  Object.assign(draft, copyDisplaySettings(props.defaults))
+  emit('preview', copyDisplaySettings(draft))
 }
 function cancel() {
   if (props.busy) return
-  emit('preview', { ...props.saved })
+  emit('preview', copyDisplaySettings(props.saved))
   emit('close')
 }
 function save() {
-  if (valid.value && !props.busy) emit('save', { ...draft })
+  if (valid.value && !props.busy) emit('save', copyDisplaySettings(draft))
 }
 function onKey(event: KeyboardEvent) {
   if (!props.open) return

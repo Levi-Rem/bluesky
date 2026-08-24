@@ -1,5 +1,6 @@
 import type { Bootstrap, DisplaySettings, ExerciseGroup, Instruction, MapLayersResponse, ReferenceItem } from './types'
 import type { InsertionMode } from './commandKeys'
+import { copyDisplaySettings } from './displaySettings'
 
 export interface ApiFieldError {
   field: string
@@ -41,7 +42,8 @@ export const api = {
   mapLayers: () => json<MapLayersResponse>('/api/v1/workstation/map-layers'),
   saveDisplaySettings: (payload: DisplaySettings) =>
     json<DisplaySettings>('/api/v1/workstation/display-settings', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(copyDisplaySettings(payload))
     }),
   start: () => json<ExerciseGroup>('/api/v1/exercise-groups/GROUP-DEFAULT/start', { method: 'POST' }),
   pause: () => json<ExerciseGroup>('/api/v1/exercise-groups/GROUP-DEFAULT/pause', { method: 'POST' }),

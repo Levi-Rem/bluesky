@@ -10,3 +10,16 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   mapWeatherColor: '#FFCF66',
   mapWeatherFillColor: '#D9822B'
 }
+
+export function copyDisplaySettings(source: DisplaySettings): DisplaySettings {
+  return {
+    trackColor: source.trackColor,
+    selectedTrackColor: source.selectedTrackColor,
+    mapWaypointColor: source.mapWaypointColor,
+    mapAirwayColor: source.mapAirwayColor,
+    mapSectorColor: source.mapSectorColor,
+    mapSectorFillColor: source.mapSectorFillColor,
+    mapWeatherColor: source.mapWeatherColor,
+    mapWeatherFillColor: source.mapWeatherFillColor
+  }
+}

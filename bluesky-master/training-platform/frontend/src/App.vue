@@ -8,7 +8,7 @@ import { insertionForEnter } from './commandKeys'
 import { arrangeInstructionQueue } from './instructionQueue'
 import { api } from './api'
 import { useWorkstationStore } from './store'
-import { DEFAULT_DISPLAY_SETTINGS } from './displaySettings'
+import { copyDisplaySettings, DEFAULT_DISPLAY_SETTINGS } from './displaySettings'
 import type { DisplaySettings, MapLayerCategory } from './types'
 
 const store = useWorkstationStore()
@@ -28,8 +28,10 @@ const group = computed(() => store.bootstrap?.exerciseGroup)
 const engine = computed(() => store.bootstrap?.engine)
 const fallbackSettings = DEFAULT_DISPLAY_SETTINGS
 const colors = computed(() => previewSettings.value ?? store.bootstrap?.uiParameters ?? fallbackSettings)
-const savedSettings = computed<DisplaySettings>(() => store.bootstrap?.uiParameters ?? fallbackSettings)
-const defaultSettings = computed<DisplaySettings>(() => store.bootstrap?.uiParameterDefaults ?? fallbackSettings)
+const savedSettings = computed<DisplaySettings>(() =>
+  copyDisplaySettings(store.bootstrap?.uiParameters ?? fallbackSettings))
+const defaultSettings = computed<DisplaySettings>(() =>
+  copyDisplaySettings(store.bootstrap?.uiParameterDefaults ?? fallbackSettings))
 const arrangedInstructions = computed(() => arrangeInstructionQueue(store.instructions))
 
 function formatTime(seconds = 0) {
@@ -85,7 +87,7 @@ function toggleMapLayer(category: MapLayerCategory, visible: boolean) {
 
 function openDisplaySettings() {
   settingsError.value = ''
-  previewSettings.value = { ...savedSettings.value }
+  previewSettings.value = copyDisplaySettings(savedSettings.value)
   settingsOpen.value = true
 }
 
@@ -94,7 +96,7 @@ async function saveSettings(settings: DisplaySettings) {
   settingsError.value = ''
   try {
     const saved = await store.saveDisplaySettings(settings)
-    previewSettings.value = { ...saved }
+    previewSettings.value = copyDisplaySettings(saved)
     settingsOpen.value = false
   } catch (reason) {
     settingsError.value = reason instanceof Error ? reason.message : String(reason)
@@ -104,7 +106,7 @@ async function saveSettings(settings: DisplaySettings) {
 }
 
 watch(() => store.bootstrap?.uiParameters, value => {
-  if (value && !settingsOpen.value) previewSettings.value = { ...value }
+  if (value && !settingsOpen.value) previewSettings.value = copyDisplaySettings(value)
 }, { deep: true })
 watch(settingsOpen, (open, wasOpen) => {
   if (!open && wasOpen) void nextTick(() => displaySettingsTrigger.value?.focus())
