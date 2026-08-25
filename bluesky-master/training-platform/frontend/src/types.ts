@@ -53,6 +53,14 @@ export interface ReferenceItem {
   longitude?: number | null
 }
 
+export interface ReferenceDataState {
+  ready: boolean
+  status: 'LOADING' | 'SOURCE_UNAVAILABLE' | 'VALIDATION_FAILED' | 'SYNC_PENDING' | 'READY' | 'SYNC_FAILED'
+  pointCount: number
+  counts: Record<string, number>
+  message: string
+}
+
 export type MapLayerCategory = 'WAYPOINT' | 'AIRWAY' | 'PHYSICAL_SECTOR' | 'WEATHER'
 export type MapFeatureType = MapLayerCategory | 'WIND_FIELD_POINT' | 'SIGNIFICANT_WEATHER_AREA'
 
@@ -78,7 +86,6 @@ export interface RuntimeMapLayer {
 
 export interface MapLayersResponse {
   available: boolean
-  revision: number | null
   layers: RuntimeMapLayer[]
 }
 
@@ -99,6 +106,7 @@ export interface Bootstrap {
   terminal: { id: string; name: string }
   exerciseGroup: ExerciseGroup
   engine: EngineState
+  referenceData: ReferenceDataState
   aircraft: Aircraft[]
   instructions: Instruction[]
   uiParameters: DisplaySettings & {

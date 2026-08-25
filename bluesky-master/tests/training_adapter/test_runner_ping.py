@@ -788,11 +788,27 @@ class AdapterRunnerPingTest(unittest.TestCase):
                         "payload": {},
                     }
                 )
-                return json.loads(socket_.recv().decode("utf-8"))
+                response = json.loads(socket_.recv().decode("utf-8"))
             except zmq.Again:
                 time.sleep(0.25)
+                continue
             finally:
                 socket_.close()
+            sync = self._request(context, endpoint, self._message(
+                "runner-reference-sync",
+                "REFERENCE_DATA_SYNC",
+                {"points": [
+                    {"id": "apt-zsss", "code": "ZSSS", "type": "AIRPORT",
+                     "latitude": 31.2, "longitude": 121.3},
+                    {"id": "apt-zbaa", "code": "ZBAA", "type": "AIRPORT",
+                     "latitude": 40.08, "longitude": 116.58},
+                    {"id": "wp-cen", "code": "CEN", "type": "VOR",
+                     "latitude": 30.77, "longitude": 120.75},
+                ]},
+            ))
+            if not sync.get("success"):
+                self.fail("Adapter runner rejected reference data sync: {}".format(sync))
+            return response
         self.fail("Adapter runner did not answer PING within 30 seconds")
 
 

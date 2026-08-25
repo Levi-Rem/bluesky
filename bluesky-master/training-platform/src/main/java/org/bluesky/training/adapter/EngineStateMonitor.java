@@ -1,6 +1,10 @@
 package org.bluesky.training.adapter;
 
 import org.bluesky.training.event.EventStreamService;
+import org.bluesky.training.mapdata.MapDataService;
+import org.bluesky.training.persistence.BootstrapMapper;
+import org.bluesky.training.persistence.ExerciseGroupRow;
+import org.bluesky.training.exercise.ExerciseGroupResponse;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -10,11 +14,20 @@ import java.time.Instant;
 public class EngineStateMonitor {
     private final SimulationGateway simulationGateway;
     private final EventStreamService eventStreamService;
+    private final ReferenceDataSynchronizer referenceDataSynchronizer;
+    private final MapDataService mapDataService;
+    private final BootstrapMapper bootstrapMapper;
     private Boolean lastConnected;
 
-    public EngineStateMonitor(SimulationGateway simulationGateway, EventStreamService eventStreamService) {
+    public EngineStateMonitor(SimulationGateway simulationGateway, EventStreamService eventStreamService,
+                              ReferenceDataSynchronizer referenceDataSynchronizer,
+                              MapDataService mapDataService,
+                              BootstrapMapper bootstrapMapper) {
         this.simulationGateway = simulationGateway;
         this.eventStreamService = eventStreamService;
+        this.referenceDataSynchronizer = referenceDataSynchronizer;
+        this.mapDataService = mapDataService;
+        this.bootstrapMapper = bootstrapMapper;
     }
 
     @Scheduled(fixedDelayString = "${bluesky.adapter.health-poll-millis:3000}")
@@ -25,8 +38,20 @@ public class EngineStateMonitor {
         }
         if (lastConnected == null || lastConnected.booleanValue() != health.isConnected()) {
             lastConnected = health.isConnected();
+            referenceDataSynchronizer.onConnectionState(health.isConnected());
+            if (!health.isConnected()) pauseExerciseAfterDisconnect();
             eventStreamService.publish("engine-state", health);
+            eventStreamService.publish("reference-data-state", mapDataService.referenceDataState());
         }
         eventStreamService.publish("heartbeat", Instant.now().toString());
+    }
+
+    private void pauseExerciseAfterDisconnect() {
+        ExerciseGroupRow group = bootstrapMapper.findDefaultGroup();
+        if (group != null && "RUNNING".equals(group.getState())
+                && bootstrapMapper.transitionGroupState(group.getId(), "RUNNING", "PAUSED") == 1) {
+            eventStreamService.publish("exercise-state",
+                    new ExerciseGroupResponse(bootstrapMapper.findDefaultGroup()));
+        }
     }
 }

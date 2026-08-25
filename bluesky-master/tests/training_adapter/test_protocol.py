@@ -32,6 +32,10 @@ class FakeEngine:
         self.operations.append(("REFERENCE_SEARCH", payload))
         return {"items": [{"code": "ZSSS", "name": "SHANGHAI HONGQIAO"}]}
 
+    def sync_reference_data(self, payload):
+        self.operations.append(("REFERENCE_DATA_SYNC", payload))
+        return {"total": len(payload.get("points", [])), "counts": {"VOR": 1}}
+
     def create_aircraft(self, payload):
         self.operations.append(("AIRCRAFT_CREATE", payload))
         return {"callsign": payload["callsign"]}
@@ -143,6 +147,24 @@ class AdapterProtocolTest(unittest.TestCase):
         self.assertTrue(response["success"])
         self.assertEqual("ZSSS", response["payload"]["items"][0]["code"])
         self.assertEqual(("REFERENCE_SEARCH", payload), engine.operations[-1])
+
+    def test_reference_data_sync_request_reaches_engine_atomically(self):
+        engine = FakeEngine()
+        payload = {"points": [{
+            "id": "1", "code": "PUD", "type": "VOR",
+            "latitude": 31.1, "longitude": 121.8,
+        }]}
+        response = AdapterProtocol(engine).handle({
+            "protocolVersion": "1.0",
+            "requestId": "reference-sync-1",
+            "type": "REFERENCE_DATA_SYNC",
+            "exerciseGroupId": "GROUP-DEFAULT",
+            "payload": payload,
+        })
+
+        self.assertTrue(response["success"])
+        self.assertEqual(1, response["payload"]["total"])
+        self.assertEqual(("REFERENCE_DATA_SYNC", payload), engine.operations[-1])
 
     def test_aircraft_create_payload_reaches_engine(self):
         engine = FakeEngine()

@@ -20,6 +20,7 @@ button { color: inherit; }
 .engine-light { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
 .engine-light.connected { color: #49d58a; background: currentColor; }
 .engine-light.disconnected { color: #df635f; background: currentColor; }
+.top-bar-actions { display: flex; align-items: center; gap: 4px; }
 .display-settings-trigger { min-height: 28px; padding: 3px 8px; border: 1px solid rgba(90, 151, 174, .3); border-radius: 4px; font-size: 11px; }
 .display-settings-trigger:hover { background: rgba(79, 151, 177, .16); }
 .collapse { color: #76909a; padding: 3px 6px; }

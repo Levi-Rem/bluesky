@@ -3,6 +3,7 @@ package org.bluesky.training.workstation;
 import org.bluesky.training.adapter.EngineHealth;
 import org.bluesky.training.instruction.InstructionResponse;
 import org.bluesky.training.display.DisplaySettingsView;
+import org.bluesky.training.mapdata.ReferenceDataState;
 
 import java.util.List;
 
@@ -10,6 +11,7 @@ public final class WorkstationBootstrapResponse {
     private final TerminalView terminal;
     private final ExerciseGroupView exerciseGroup;
     private final EngineHealth engine;
+    private final ReferenceDataState referenceData;
     private final List<?> aircraft;
     private final List<InstructionResponse> instructions;
     private final UiParametersView uiParameters;
@@ -18,6 +20,7 @@ public final class WorkstationBootstrapResponse {
     public WorkstationBootstrapResponse(TerminalView terminal,
                                         ExerciseGroupView exerciseGroup,
                                         EngineHealth engine,
+                                        ReferenceDataState referenceData,
                                         UiParametersView uiParameters,
                                         DisplaySettingsView uiParameterDefaults,
                                         List<?> aircraft,
@@ -25,6 +28,7 @@ public final class WorkstationBootstrapResponse {
         this.terminal = terminal;
         this.exerciseGroup = exerciseGroup;
         this.engine = engine;
+        this.referenceData = referenceData;
         this.aircraft = aircraft;
         this.instructions = instructions;
         this.uiParameters = uiParameters;
@@ -42,6 +46,8 @@ public final class WorkstationBootstrapResponse {
     public EngineHealth getEngine() {
         return engine;
     }
+
+    public ReferenceDataState getReferenceData() { return referenceData; }
 
     public List<?> getAircraft() {
         return aircraft;

@@ -1,5 +1,8 @@
 package org.bluesky.training.instruction;
 
+import org.bluesky.training.mapdata.RuntimeNavigationPoint;
+
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -14,22 +17,27 @@ public final class EngineInstructionCommand {
     private final Double mach;
     private final String waypoint;
     private final List<String> route;
+    private final RuntimeNavigationPoint waypointPoint;
+    private final List<RuntimeNavigationPoint> routePoints;
 
     public EngineInstructionCommand() {
-        this(null, null, null, null, null, null, null, null, null, Collections.emptyList());
+        this(null, null, null, null, null, null, null, null, null,
+                Collections.emptyList(), null, Collections.emptyList());
     }
 
     public EngineInstructionCommand(String callsign, String type, Double headingDegrees,
                                     Double altitudeFeet, Double verticalSpeedFeetPerMinute,
                                     Double speedKnots, Double mach, String waypoint, List<String> route) {
         this(callsign, null, type, headingDegrees, altitudeFeet, verticalSpeedFeetPerMinute,
-                speedKnots, mach, waypoint, route);
+                speedKnots, mach, waypoint, route, null, Collections.emptyList());
     }
 
     private EngineInstructionCommand(String callsign, String commandId, String type,
                                      Double headingDegrees, Double altitudeFeet,
                                      Double verticalSpeedFeetPerMinute, Double speedKnots,
-                                     Double mach, String waypoint, List<String> route) {
+                                     Double mach, String waypoint, List<String> route,
+                                     RuntimeNavigationPoint waypointPoint,
+                                     List<RuntimeNavigationPoint> routePoints) {
         this.callsign = callsign;
         this.commandId = commandId;
         this.type = type;
@@ -40,6 +48,9 @@ public final class EngineInstructionCommand {
         this.mach = mach;
         this.waypoint = waypoint;
         this.route = route == null ? Collections.emptyList() : route;
+        this.waypointPoint = waypointPoint;
+        this.routePoints = routePoints == null ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(routePoints));
     }
 
     public String getCallsign() { return callsign; }
@@ -52,14 +63,25 @@ public final class EngineInstructionCommand {
     public Double getMach() { return mach; }
     public String getWaypoint() { return waypoint; }
     public List<String> getRoute() { return route; }
+    public RuntimeNavigationPoint getWaypointPoint() { return waypointPoint; }
+    public List<RuntimeNavigationPoint> getRoutePoints() { return routePoints; }
 
     public EngineInstructionCommand withCommandId(String value) {
         return new EngineInstructionCommand(callsign, value, type, headingDegrees,
-                altitudeFeet, verticalSpeedFeetPerMinute, speedKnots, mach, waypoint, route);
+                altitudeFeet, verticalSpeedFeetPerMinute, speedKnots, mach, waypoint, route,
+                waypointPoint, routePoints);
     }
 
     public EngineInstructionCommand withVerticalSpeedFeetPerMinute(Double value) {
         return new EngineInstructionCommand(callsign, commandId, type, headingDegrees,
-                altitudeFeet, value, speedKnots, mach, waypoint, route);
+                altitudeFeet, value, speedKnots, mach, waypoint, route,
+                waypointPoint, routePoints);
+    }
+
+    public EngineInstructionCommand withResolvedPoints(RuntimeNavigationPoint resolvedWaypoint,
+                                                       List<RuntimeNavigationPoint> resolvedRoute) {
+        return new EngineInstructionCommand(callsign, commandId, type, headingDegrees,
+                altitudeFeet, verticalSpeedFeetPerMinute, speedKnots, mach, waypoint, route,
+                resolvedWaypoint, resolvedRoute);
     }
 }

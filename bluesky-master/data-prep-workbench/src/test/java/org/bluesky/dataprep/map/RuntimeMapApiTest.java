@@ -32,7 +32,7 @@ class RuntimeMapApiTest {
     void returnsFourRuntimeLayersInStableOrder() throws Exception {
         mockMvc.perform(get("/api/map/runtime-layers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.revision").isNumber())
+                .andExpect(jsonPath("$.revision").doesNotExist())
                 .andExpect(jsonPath("$.layers.length()").value(4))
                 .andExpect(jsonPath("$.layers[0].category").value("WAYPOINT"))
                 .andExpect(jsonPath("$.layers[1].category").value("AIRWAY"))
@@ -42,15 +42,49 @@ class RuntimeMapApiTest {
 
     @Test
     void excludesDisabledWaypointsAndAirways() throws Exception {
-        jdbc.update("UPDATE navigation_point SET status='DISABLED' WHERE id='seed-nav-and'");
+        jdbc.update("INSERT INTO navigation_point "
+                + "(id,code,name,point_type,longitude,latitude,status,source_type,deleted) "
+                + "VALUES ('runtime-disabled','OFF','停用点','FIX',120,30,'DISABLED','MANUAL',FALSE)");
         jdbc.update("UPDATE airway SET status='DISABLED' WHERE id='seed-aw-b221'");
 
         mockMvc.perform(get("/api/map/runtime-layers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.layers[0].features[*].code", hasItem("PUD")))
-                .andExpect(jsonPath("$.layers[0].features[*].code", not(hasItem("AND"))))
+                .andExpect(jsonPath("$.layers[0].features[*].code", not(hasItem("OFF"))))
                 .andExpect(jsonPath("$.layers[1].features[*].code", hasItem("A593")))
                 .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("B221"))));
+    }
+
+    @Test
+    void returnsStandardNavigationTypesAndAirportsWithEngineMetadata() throws Exception {
+        jdbc.update("INSERT INTO navigation_point "
+                + "(id,code,name,point_type,longitude,latitude,elevation_m,status,source_type,deleted) "
+                + "VALUES ('runtime-other','OTHER1','排除点','OTHER',120,30,10,'ENABLED','MANUAL',FALSE)");
+
+        mockMvc.perform(get("/api/map/runtime-layers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layers[0].features[*].code", hasItem("PUD")))
+                .andExpect(jsonPath("$.layers[0].features[*].code", hasItem("ZSPD")))
+                .andExpect(jsonPath("$.layers[0].features[*].code", not(hasItem("OTHER1"))))
+                .andExpect(jsonPath("$.layers[0].features[?(@.code=='PUD')].pointType", hasItem("VOR")))
+                .andExpect(jsonPath("$.layers[0].features[?(@.code=='PUD')].elevationMeters", hasItem(4)))
+                .andExpect(jsonPath("$.layers[0].features[?(@.code=='ZSPD')].pointType", hasItem("AIRPORT")));
+    }
+
+    @Test
+    void returnsOrderedAirwayPointReferencesAndDirections() throws Exception {
+        mockMvc.perform(get("/api/map/runtime-layers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layers[1].features[?(@.code=='A593')].airwayDirection",
+                        hasItem("BOTH")))
+                .andExpect(jsonPath("$.layers[1].features[?(@.code=='A593')].pointIds[0]",
+                        hasItem("seed-nav-pud")))
+                .andExpect(jsonPath("$.layers[1].features[?(@.code=='A593')].pointCodes[0]",
+                        hasItem("PUD")))
+                .andExpect(jsonPath("$.layers[1].features[?(@.code=='A593')].pointCodes[1]",
+                        hasItem("SASAN")))
+                .andExpect(jsonPath("$.layers[1].features[?(@.code=='A593')].segmentDirections[0]",
+                        hasItem("BOTH")));
     }
 
     @Test
@@ -87,26 +121,32 @@ class RuntimeMapApiTest {
     }
 
     @Test
-    void skipsAnEntireAirwayWhenAnyVertexIsInvalid() throws Exception {
+    void rejectsSnapshotWhenAnyNavigationPointIsInvalid() throws Exception {
         jdbc.update("UPDATE navigation_point SET latitude=999 WHERE id='seed-nav-sasan'");
 
         mockMvc.perform(get("/api/map/runtime-layers"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.layers[0].features[*].code", not(hasItem("SASAN"))))
-                .andExpect(jsonPath("$.layers[1].features[*].code", hasItem("W13")))
-                .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("A593"))))
-                .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("B221"))));
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INVALID_RUNTIME_NAV_DATA"));
     }
 
     @Test
-    void skipsAnEntireAirwayWhenAReferencedWaypointIsDeleted() throws Exception {
+    void rejectsSnapshotWhenAirwayReferencesDeletedWaypoint() throws Exception {
         jdbc.update("UPDATE navigation_point SET deleted=TRUE WHERE id='seed-nav-sasan'");
 
         mockMvc.perform(get("/api/map/runtime-layers"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.layers[1].features[*].code", hasItem("W13")))
-                .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("A593"))))
-                .andExpect(jsonPath("$.layers[1].features[*].code", not(hasItem("B221"))));
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INVALID_RUNTIME_NAV_DATA"));
+    }
+
+    @Test
+    void rejectsSnapshotWhenNavigationCodesOnlyDifferByCase() throws Exception {
+        jdbc.update("INSERT INTO airport "
+                + "(id,code,name,longitude,latitude,status,source_type,deleted) "
+                + "VALUES ('runtime-duplicate','pud','重复机场',120,30,'ENABLED','MANUAL',FALSE)");
+
+        mockMvc.perform(get("/api/map/runtime-layers"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INVALID_RUNTIME_NAV_DATA"));
     }
 
     private void insertSectorPoint(String id, int order, double longitude, double latitude) {

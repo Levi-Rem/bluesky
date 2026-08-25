@@ -82,6 +82,12 @@ class AdapterProtocol:
                 self._engine.search_reference(request.get("payload") or {}),
             )
 
+        if message_type == "REFERENCE_DATA_SYNC":
+            return self._success(
+                request_id,
+                self._engine.sync_reference_data(request.get("payload") or {}),
+            )
+
         return self._failure(
             request_id,
             "UNSUPPORTED_MESSAGE_TYPE",

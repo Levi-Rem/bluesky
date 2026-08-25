@@ -158,6 +158,7 @@ function bootstrapWithAircraft(): Bootstrap {
     terminal: { id: 'PP-DEFAULT', name: 'default' },
     exerciseGroup: { id: 'GROUP-DEFAULT', name: 'default', state: 'READY' as const, simulationTimeSeconds: 0 },
     engine: { connected: true, status: 'CONNECTED', performanceModel: 'OPENAP', message: 'ok' },
+    referenceData: { ready: true, status: 'READY', pointCount: 3, counts: { AIRPORT: 2, VOR: 1 }, message: 'ok' },
     aircraft: ['aircraft-a', 'aircraft-b'].map((id, index) => ({
       id, assignedTerminalId: 'PP-DEFAULT', callsign: `CCA${index + 1}`, aircraftType: 'A320',
       wakeCategory: 'M', transponderCode: '1234', origin: 'ZSSS', destination: 'ZBAA',

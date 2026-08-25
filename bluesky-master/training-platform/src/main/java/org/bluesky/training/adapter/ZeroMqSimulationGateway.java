@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.bluesky.training.aircraft.AircraftCreateCommand;
 import org.bluesky.training.instruction.EngineInstructionCommand;
 import org.bluesky.training.reference.ReferenceItem;
+import org.bluesky.training.mapdata.RuntimeNavigationPoint;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.zeromq.SocketType;
@@ -17,6 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Component
 public class ZeroMqSimulationGateway implements SimulationGateway, AutoCloseable {
@@ -104,6 +107,17 @@ public class ZeroMqSimulationGateway implements SimulationGateway, AutoCloseable
                     item.hasNonNull("longitude") ? item.path("longitude").asDouble() : null));
         }
         return items;
+    }
+
+    @Override
+    public ReferenceDataSyncResult syncReferenceData(List<RuntimeNavigationPoint> points) {
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.set("points", objectMapper.valueToTree(points));
+        JsonNode response = request("REFERENCE_DATA_SYNC", payload);
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        response.path("counts").fields().forEachRemaining(entry ->
+                counts.put(entry.getKey(), entry.getValue().asInt()));
+        return new ReferenceDataSyncResult(response.path("total").asInt(), counts);
     }
 
     private JsonNode request(String type, JsonNode payload) {

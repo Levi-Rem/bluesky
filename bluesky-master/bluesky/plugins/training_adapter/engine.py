@@ -1,6 +1,7 @@
 """Narrow boundary around the embedded BlueSky engine."""
 
 from pathlib import Path
+from math import isfinite
 from typing import Any, Dict
 
 from bluesky.tools.aero import ft, kts
@@ -20,6 +21,7 @@ class BlueSkyEngine:
         self._engine_state = "READY"
         self._direct_to_executions = {}
         self._route_change_receipts = {}
+        self._reference_points = {}
         self._airborne_performance = AirbornePerformanceCatalog.load_default()
 
     def initialize(self) -> None:
@@ -32,6 +34,7 @@ class BlueSkyEngine:
         self._engine_state = "READY"
         self._direct_to_executions.clear()
         self._route_change_receipts.clear()
+        self._reference_points.clear()
         self._initialized = True
 
     def health(self) -> Dict[str, Any]:
@@ -95,11 +98,15 @@ class BlueSkyEngine:
         self._require_initialized()
         callsign = str(payload["callsign"]).upper()
         aircraft_type = str(payload["aircraftType"]).upper()
-        route = [str(name).upper() for name in payload.get("route", [])]
+        route = payload.get("routePoints") or payload.get("route", [])
         latitude, longitude = self._resolve_position(payload)
         self._validate_aircraft_type(aircraft_type)
-        origin = str(payload.get("origin", "")).upper()
-        destination = str(payload.get("destination", "")).upper()
+        origin = self._point_code(payload.get("originPoint") or payload.get("origin", ""))
+        destination = self._point_code(
+            payload.get("destinationPoint") or payload.get("destination", "")
+        )
+        self._resolve_reference_point(payload.get("originPoint") or origin)
+        self._resolve_reference_point(payload.get("destinationPoint") or destination)
         self._validate_airport(origin, "起飞机场")
         self._validate_airport(destination, "落地机场")
         self._validate_route(route)
@@ -108,7 +115,7 @@ class BlueSkyEngine:
             float(payload["altitudeFeet"]) * ft,
             float(payload["speedKnots"]) * kts,
         )
-        if route and route[-1] != destination:
+        if route and self._point_code(route[-1]) != destination:
             raise ValueError("航路最后一点必须是落地机场: {}".format(destination))
 
         result = self._bs.traf.cre(
@@ -238,7 +245,10 @@ class BlueSkyEngine:
         elif instruction_type == "MACH":
             self._bs.traf.ap.selspdcmd(index, float(payload["mach"]))
         elif instruction_type == "DCT":
-            waypoint = str(payload["waypoint"]).upper()
+            waypoint = self._point_code(
+                payload.get("waypointPoint") or payload.get("waypoint", "")
+            )
+            self._resolve_reference_point(payload.get("waypointPoint") or waypoint)
             command_id = str(payload.get("commandId", "")).strip()
             if not command_id:
                 raise ValueError("DCT 缺少 commandId")
@@ -257,9 +267,9 @@ class BlueSkyEngine:
             command_id = str(payload.get("commandId", "")).strip()
             if not command_id:
                 raise ValueError("RTE 缺少 commandId")
-            replacement = [str(name).upper() for name in payload.get("route", [])]
+            replacement = payload.get("routePoints") or payload.get("route", [])
             destination = str(self._bs.traf.ap.dest[index]).upper()
-            if not replacement or replacement[-1] != destination:
+            if not replacement or self._point_code(replacement[-1]) != destination:
                 raise ValueError("RTE 最后一点必须是落地机场: {}".format(destination))
             self._validate_route(replacement)
             self._replace_route(index, replacement)
@@ -354,41 +364,11 @@ class BlueSkyEngine:
         limit = max(1, min(int(payload.get("limit", 20)), 50))
 
         if kind == "AIRPORT":
-            items = []
-            for index, code in enumerate(self._bs.navdb.aptid):
-                name = str(self._bs.navdb.aptname[index])
-                if query and query not in str(code).upper() and query not in name.upper():
-                    continue
-                items.append(
-                    {
-                        "code": str(code).upper(),
-                        "name": name,
-                        "latitude": float(self._bs.navdb.aptlat[index]),
-                        "longitude": float(self._bs.navdb.aptlon[index]),
-                    }
-                )
-                if len(items) >= limit:
-                    break
+            items = self._search_runtime_points(query, limit, True)
             return {"kind": kind, "items": items}
 
         if kind == "WAYPOINT":
-            items = []
-            seen = set()
-            for index, code in enumerate(self._bs.navdb.wpid):
-                normalized = str(code).upper()
-                if normalized in seen or (query and query not in normalized):
-                    continue
-                seen.add(normalized)
-                items.append(
-                    {
-                        "code": normalized,
-                        "name": str(self._bs.navdb.wpdesc[index]),
-                        "latitude": float(self._bs.navdb.wplat[index]),
-                        "longitude": float(self._bs.navdb.wplon[index]),
-                    }
-                )
-                if len(items) >= limit:
-                    break
+            items = self._search_runtime_points(query, limit, False)
             return {"kind": kind, "items": items}
 
         if kind == "AIRCRAFT_TYPE":
@@ -414,6 +394,62 @@ class BlueSkyEngine:
             }
 
         raise ValueError("不支持的参考数据类型: {}".format(kind))
+
+    def sync_reference_data(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate a complete point catalog before replacing the active catalog."""
+        raw_points = payload.get("points")
+        if not isinstance(raw_points, list) or not raw_points:
+            raise ValueError("导航参考点全集不能为空")
+        supported_types = {"WAYPOINT", "AIRPORT", "VOR", "NDB", "DME", "VOR_DME", "ILS"}
+        candidate = {}
+        counts = {}
+        for raw in raw_points:
+            if not isinstance(raw, dict):
+                raise ValueError("导航参考点必须是对象")
+            point_id = str(raw.get("id", "")).strip()
+            code = str(raw.get("code", "")).strip().upper()
+            point_type = str(raw.get("type", "")).strip().upper()
+            if not point_id or not code:
+                raise ValueError("导航参考点 id/code 不能为空")
+            if code in candidate:
+                raise ValueError("导航参考点代码重复: {}".format(code))
+            if point_type not in supported_types:
+                raise ValueError("导航参考点类型不支持: {}".format(point_type))
+            try:
+                latitude = float(raw["latitude"])
+                longitude = float(raw["longitude"])
+            except (KeyError, TypeError, ValueError):
+                raise ValueError("导航参考点坐标非法: {}".format(code))
+            if (not isfinite(latitude) or not isfinite(longitude)
+                    or not -90.0 <= latitude <= 90.0
+                    or not -180.0 <= longitude <= 180.0):
+                raise ValueError("导航参考点坐标越界: {}".format(code))
+            candidate[code] = {
+                "id": point_id,
+                "code": code,
+                "type": point_type,
+                "latitude": latitude,
+                "longitude": longitude,
+                "elevationMeters": raw.get("elevationMeters"),
+            }
+            counts[point_type] = counts.get(point_type, 0) + 1
+        self._reference_points = candidate
+        return {"total": len(candidate), "counts": counts}
+
+    def _search_runtime_points(self, query, limit, airports):
+        matches = []
+        for point in self._reference_points.values():
+            if airports != (point["type"] == "AIRPORT"):
+                continue
+            if query and query not in point["code"]:
+                continue
+            matches.append({
+                "code": point["code"],
+                "name": point["code"],
+                "latitude": point["latitude"],
+                "longitude": point["longitude"],
+            })
+        return sorted(matches, key=lambda item: item["code"])[:limit]
 
     def _replace_route(self, aircraft_index: int, waypoint_names) -> None:
         from bluesky.traffic.route import Route
@@ -444,13 +480,15 @@ class BlueSkyEngine:
                 setattr(route, key, [])
             route.nwp = 0
             route.iactwp = -1
-            for name in waypoint_names:
+            for item in waypoint_names:
+                name = self._point_code(item)
+                point = self._resolve_reference_point(item)
                 result = route.addwpt(
                     aircraft_index,
                     name,
-                    Route.wpnav,
-                    float(self._bs.traf.lat[aircraft_index]),
-                    float(self._bs.traf.lon[aircraft_index]),
+                    Route.wplatlon,
+                    point["latitude"],
+                    point["longitude"],
                 )
                 if result < 0:
                     raise ValueError("航路点无法加入航路: {}".format(name))
@@ -469,24 +507,34 @@ class BlueSkyEngine:
         longitude = payload.get("longitude")
         if latitude is not None and longitude is not None:
             return float(latitude), float(longitude)
-        initial_waypoint = str(payload.get("initialWaypoint", "")).upper()
+        initial = payload.get("initialPoint") or payload.get("initialWaypoint", "")
+        initial_waypoint = self._point_code(initial)
         if not initial_waypoint:
             raise ValueError("必须提供经纬度或初始航路点")
-        index = self._bs.navdb.getwpidx(initial_waypoint)
-        if index >= 0:
-            return float(self._bs.navdb.wplat[index]), float(self._bs.navdb.wplon[index])
-        airport_index = self._bs.navdb.getaptidx(initial_waypoint)
-        if airport_index >= 0:
-            return (
-                float(self._bs.navdb.aptlat[airport_index]),
-                float(self._bs.navdb.aptlon[airport_index]),
-            )
-        raise ValueError("未知初始航路点: {}".format(initial_waypoint))
+        point = self._resolve_reference_point(initial)
+        return point["latitude"], point["longitude"]
 
     def _validate_route(self, route):
-        for name in route:
-            if self._bs.navdb.getwpidx(name) < 0 and self._bs.navdb.getaptidx(name) < 0:
-                raise ValueError("未知航路点或机场: {}".format(name))
+        for point in route:
+            self._resolve_reference_point(point)
+
+    @staticmethod
+    def _point_code(point):
+        value = point.get("code") if isinstance(point, dict) else point
+        return str(value).strip().upper()
+
+    def _resolve_reference_point(self, value):
+        code = self._point_code(value)
+        point = self._reference_points.get(code)
+        if point is None:
+            raise ValueError("未知航路点或机场: {}".format(code))
+        if isinstance(value, dict):
+            if (str(value.get("id", "")) != point["id"]
+                    or str(value.get("type", "")).upper() != point["type"]
+                    or float(value.get("latitude", 999.0)) != point["latitude"]
+                    or float(value.get("longitude", 999.0)) != point["longitude"]):
+                raise ValueError("导航参考点对象与已同步数据不一致: {}".format(code))
+        return point
 
     def _validate_aircraft_type(self, aircraft_type):
         supported = self._supported_aircraft_types()
@@ -507,20 +555,23 @@ class BlueSkyEngine:
         }
 
     def _validate_airport(self, airport, field_name):
-        if not airport or self._bs.navdb.getaptidx(airport) < 0:
+        point = self._reference_points.get(str(airport).upper())
+        if not point or point["type"] != "AIRPORT":
             raise ValueError("未知{}: {}".format(field_name, airport))
 
     def _set_route(self, aircraft_index: int, waypoint_names) -> None:
         from bluesky.traffic.route import Route
 
         route = self._bs.traf.ap.route[aircraft_index]
-        for name in waypoint_names:
+        for item in waypoint_names:
+            name = str(item.get("code") if isinstance(item, dict) else item).upper()
+            point = self._resolve_reference_point(item)
             result = route.addwpt(
                 aircraft_index,
                 name,
-                Route.wpnav,
-                float(self._bs.traf.lat[aircraft_index]),
-                float(self._bs.traf.lon[aircraft_index]),
+                Route.wplatlon,
+                point["latitude"],
+                point["longitude"],
             )
             if result < 0:
                 raise ValueError("航路点无法加入航路: {}".format(name))

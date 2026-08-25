@@ -4,6 +4,7 @@ import org.bluesky.training.adapter.SimulationGateway;
 import org.bluesky.training.persistence.BootstrapMapper;
 import org.bluesky.training.persistence.ExerciseGroupRow;
 import org.bluesky.training.event.EventStreamService;
+import org.bluesky.training.mapdata.ReferenceDataResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,12 +15,15 @@ public class ExerciseGroupService {
     private final BootstrapMapper bootstrapMapper;
     private final SimulationGateway simulationGateway;
     private final EventStreamService eventStreamService;
+    private final ReferenceDataResolver referenceDataResolver;
 
     public ExerciseGroupService(BootstrapMapper bootstrapMapper, SimulationGateway simulationGateway,
-                                EventStreamService eventStreamService) {
+                                EventStreamService eventStreamService,
+                                ReferenceDataResolver referenceDataResolver) {
         this.bootstrapMapper = bootstrapMapper;
         this.simulationGateway = simulationGateway;
         this.eventStreamService = eventStreamService;
+        this.referenceDataResolver = referenceDataResolver;
     }
 
     @Transactional
@@ -33,6 +37,7 @@ public class ExerciseGroupService {
             throw new IllegalStateException("训练组当前状态不能开始: " + current.getState());
         }
 
+        referenceDataResolver.requireReady();
         simulationGateway.start();
         int changed = bootstrapMapper.transitionGroupState(groupId, "READY", "RUNNING");
         if (changed != 1) {
@@ -69,6 +74,7 @@ public class ExerciseGroupService {
         if (!"PAUSED".equals(current.getState())) {
             throw new IllegalStateException("训练组当前状态不能继续: " + current.getState());
         }
+        referenceDataResolver.requireReady();
         simulationGateway.resume();
         int changed = bootstrapMapper.transitionGroupState(groupId, "PAUSED", "RUNNING");
         if (changed != 1) {

@@ -4,6 +4,7 @@ import org.bluesky.training.adapter.AdapterUnavailableException;
 import org.bluesky.training.adapter.AdapterRejectedException;
 import org.bluesky.training.display.DisplaySettingsPersistenceException;
 import org.bluesky.training.display.DisplaySettingsValidationException;
+import org.bluesky.training.mapdata.ReferenceDataException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -49,6 +50,14 @@ public class ApiExceptionHandler {
                                            HttpServletRequest request) {
         return ApiErrorResponse.engineRejected(
                 exception.getCode(), exception.getMessage(), requestId(request));
+    }
+
+    @ExceptionHandler(ReferenceDataException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiErrorResponse referenceData(ReferenceDataException exception,
+                                          HttpServletRequest request) {
+        return new ApiErrorResponse(exception.getCode(), exception.getMessage(),
+                java.util.Collections.emptyList(), requestId(request));
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from './api'
-import type { Aircraft, Bootstrap, DisplaySettings, EngineState, ExerciseGroup, Instruction, MapLayerVisibility, RuntimeMapLayer } from './types'
+import type { Aircraft, Bootstrap, DisplaySettings, EngineState, ExerciseGroup, Instruction, MapLayerVisibility, ReferenceDataState, RuntimeMapLayer } from './types'
 
 export const useWorkstationStore = defineStore('workstation', () => {
   const bootstrap = ref<Bootstrap | null>(null)
@@ -88,6 +88,7 @@ export const useWorkstationStore = defineStore('workstation', () => {
       if (bootstrap.value) bootstrap.value.exerciseGroup = JSON.parse((event as MessageEvent).data) as ExerciseGroup
     })
     source.addEventListener('engine-state', event => updateEngine(JSON.parse((event as MessageEvent).data)))
+    source.addEventListener('reference-data-state', event => updateReferenceData(JSON.parse((event as MessageEvent).data)))
     source.addEventListener('aircraft-upserted', event => upsertAircraft(JSON.parse((event as MessageEvent).data)))
     source.addEventListener('aircraft-deleted', event => removeAircraft(JSON.parse((event as MessageEvent).data).id))
     source.addEventListener('instruction-upserted', event => upsertInstruction(JSON.parse((event as MessageEvent).data)))
@@ -137,6 +138,10 @@ export const useWorkstationStore = defineStore('workstation', () => {
     if (bootstrap.value) bootstrap.value.engine = next
   }
 
+  function updateReferenceData(next: ReferenceDataState) {
+    if (bootstrap.value) bootstrap.value.referenceData = next
+  }
+
   function removeAircraft(id: string) {
     if (!bootstrap.value) return
     bootstrap.value.aircraft = bootstrap.value.aircraft.filter(item => item.id !== id)
@@ -179,6 +184,7 @@ export const useWorkstationStore = defineStore('workstation', () => {
     bootstrap, aircraft, selectedAircraft, selectedAircraftId, instructions, error, loading,
     mapDataAvailable, mapLayers, mapLayerVisibility,
     load, loadMapLayersOnce, setMapLayerVisible, saveDisplaySettings,
-    loadInstructions, selectAircraft, deleteAircraft, upsertAircraft, upsertInstruction, updateEngine
+    loadInstructions, selectAircraft, deleteAircraft, upsertAircraft, upsertInstruction,
+    updateEngine, updateReferenceData
   }
 })

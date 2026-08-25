@@ -30,25 +30,25 @@ class MapDataApiTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private MapDataClient mapDataClient;
+    private MapDataService mapDataService;
 
     @MockBean
     private SimulationGateway simulationGateway;
 
     @Test
     void proxiesAvailableRuntimeSnapshot() throws Exception {
-        given(mapDataClient.fetch()).willReturn(snapshot());
+        given(mapDataService.snapshot()).willReturn(snapshot());
 
         mockMvc.perform(get("/api/v1/workstation/map-layers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.available").value(true))
-                .andExpect(jsonPath("$.revision").value(18))
+                .andExpect(jsonPath("$.revision").doesNotExist())
                 .andExpect(jsonPath("$.layers[0].category").value("WAYPOINT"));
     }
 
     @Test
     void silentlyDegradesWhenDataPrepFails() throws Exception {
-        given(mapDataClient.fetch()).willThrow(new IllegalStateException("connection refused"));
+        given(mapDataService.snapshot()).willReturn(MapLayersResponse.unavailable());
 
         mockMvc.perform(get("/api/v1/workstation/map-layers"))
                 .andExpect(status().isOk())
@@ -59,7 +59,7 @@ class MapDataApiTest {
 
     @Test
     void mapFailureDoesNotAffectWorkstationBootstrap() throws Exception {
-        given(mapDataClient.fetch()).willThrow(new IllegalStateException("timeout"));
+        given(mapDataService.snapshot()).willReturn(MapLayersResponse.unavailable());
         given(simulationGateway.health()).willReturn(
                 new EngineHealth(true, "CONNECTED", "OPENAP", "BlueSky 已连接"));
 
@@ -79,6 +79,6 @@ class MapDataApiTest {
         layer.put("features", new ArrayList<>());
         List<Map<String, Object>> layers = new ArrayList<>();
         layers.add(layer);
-        return MapLayersResponse.available(18L, layers);
+        return MapLayersResponse.available(layers);
     }
 }

@@ -2,6 +2,9 @@ package org.bluesky.training.adapter;
 
 import org.bluesky.training.event.EventStreamService;
 import org.junit.jupiter.api.Test;
+import org.bluesky.training.mapdata.MapDataService;
+import org.bluesky.training.persistence.BootstrapMapper;
+import org.bluesky.training.persistence.ExerciseGroupRow;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -15,11 +18,22 @@ class EngineStateMonitorTest {
     void publishesEngineStateOnlyWhenConnectionStateChangesAndAlwaysSendsHeartbeat() {
         SimulationGateway gateway = mock(SimulationGateway.class);
         EventStreamService events = mock(EventStreamService.class);
+        ReferenceDataSynchronizer synchronizer = mock(ReferenceDataSynchronizer.class);
+        MapDataService mapDataService = mock(MapDataService.class);
+        BootstrapMapper bootstrapMapper = mock(BootstrapMapper.class);
+        ExerciseGroupRow running = new ExerciseGroupRow();
+        running.setId("GROUP-DEFAULT");
+        running.setName("default");
+        running.setState("RUNNING");
+        when(bootstrapMapper.findDefaultGroup()).thenReturn(running);
+        when(bootstrapMapper.transitionGroupState("GROUP-DEFAULT", "RUNNING", "PAUSED"))
+                .thenReturn(1);
         when(gateway.health())
                 .thenReturn(new EngineHealth(true, "CONNECTED", "OPENAP", "BlueSky 已连接"))
                 .thenReturn(new EngineHealth(true, "CONNECTED", "OPENAP", "BlueSky 已连接"))
                 .thenReturn(new EngineHealth(false, "DISCONNECTED", "UNKNOWN", "连接超时"));
-        EngineStateMonitor monitor = new EngineStateMonitor(gateway, events);
+        EngineStateMonitor monitor = new EngineStateMonitor(
+                gateway, events, synchronizer, mapDataService, bootstrapMapper);
 
         monitor.poll();
         monitor.poll();
@@ -27,5 +41,9 @@ class EngineStateMonitorTest {
 
         verify(events, times(2)).publish(eq("engine-state"), any(EngineHealth.class));
         verify(events, times(3)).publish(eq("heartbeat"), any());
+        verify(synchronizer).onConnectionState(true);
+        verify(synchronizer).onConnectionState(false);
+        verify(events, times(2)).publish(eq("reference-data-state"), any());
+        verify(bootstrapMapper).transitionGroupState("GROUP-DEFAULT", "RUNNING", "PAUSED");
     }
 }

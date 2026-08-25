@@ -23,11 +23,17 @@ public class RuntimeMapLayer {
 
     public void addFeature(String featureId, String featureType, String code,
                            String name, Object geometry) {
+        addFeature(featureId, featureType, code, name, geometry, null);
+    }
+
+    public void addFeature(String featureId, String featureType, String code,
+                           String name, Object geometry, Map<String, Object> extra) {
         Map<String, Object> feature = new LinkedHashMap<>();
         feature.put("featureId", featureId);
         feature.put("featureType", featureType);
         feature.put("code", code);
         feature.put("name", name);
+        if (extra != null) feature.putAll(extra);
         feature.put("geometry", geometry);
         features.add(feature);
     }

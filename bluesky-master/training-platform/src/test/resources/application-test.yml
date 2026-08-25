@@ -8,6 +8,15 @@ spring:
     enabled: true
     locations: classpath:db/migration,classpath:db/performance-seed
 
+bluesky:
+  reference-data:
+    enforcement-enabled: false
+  data-prep:
+    startup-load-enabled: false
+  adapter:
+    state-subscription-enabled: false
+    health-poll-millis: 3600000
+
 ---
 spring:
   config:
@@ -19,8 +28,3 @@ spring:
 logging:
   level:
     root: WARN
-
-bluesky:
-  adapter:
-    state-subscription-enabled: false
-    health-poll-millis: 3600000

@@ -1,5 +1,6 @@
 package org.bluesky.dataprep.common;
 
+import org.bluesky.dataprep.map.RuntimeMapDataException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -17,6 +18,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, Object>> handleApi(ApiException ex) {
         return ResponseEntity.status(ex.getStatus()).body(body(ex.getStatus(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(RuntimeMapDataException.class)
+    public ResponseEntity<Map<String, Object>> handleRuntimeMapData(RuntimeMapDataException ex) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("code", "INVALID_RUNTIME_NAV_DATA");
+        response.put("message", ex.getMessage());
+        return ResponseEntity.status(500).body(response);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

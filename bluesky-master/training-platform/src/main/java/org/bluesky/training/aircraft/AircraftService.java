@@ -4,6 +4,7 @@ import org.bluesky.training.adapter.SimulationGateway;
 import org.bluesky.training.configuration.FieldValidationException;
 import org.bluesky.training.persistence.AircraftMapper;
 import org.bluesky.training.persistence.AircraftRow;
+import org.bluesky.training.mapdata.ReferenceDataResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,16 +18,19 @@ import java.util.stream.Collectors;
 public class AircraftService {
     private final AircraftMapper aircraftMapper;
     private final SimulationGateway simulationGateway;
+    private final ReferenceDataResolver referenceDataResolver;
 
-    public AircraftService(AircraftMapper aircraftMapper, SimulationGateway simulationGateway) {
+    public AircraftService(AircraftMapper aircraftMapper, SimulationGateway simulationGateway,
+                           ReferenceDataResolver referenceDataResolver) {
         this.aircraftMapper = aircraftMapper;
         this.simulationGateway = simulationGateway;
+        this.referenceDataResolver = referenceDataResolver;
     }
 
     @Transactional
     public AircraftResponse create(String groupId, CreateAircraftRequest request) {
         requireDefaultGroup(groupId);
-        AircraftCreateCommand command = normalize(request);
+        AircraftCreateCommand command = referenceDataResolver.resolve(normalize(request));
         if (aircraftMapper.findByCallsign(command.getCallsign()) != null) {
             throw new FieldValidationException("callsign", "当前训练组已存在该呼号");
         }

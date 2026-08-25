@@ -3,6 +3,7 @@ package org.bluesky.training.adapter;
 import org.bluesky.training.aircraft.AircraftCreateCommand;
 import org.bluesky.training.instruction.EngineInstructionCommand;
 import org.bluesky.training.reference.ReferenceItem;
+import org.bluesky.training.mapdata.RuntimeNavigationPoint;
 
 import java.util.List;
 
@@ -24,4 +25,6 @@ public interface SimulationGateway {
     void executeInstruction(EngineInstructionCommand command);
 
     List<ReferenceItem> searchReference(String kind, String query, int limit);
+
+    ReferenceDataSyncResult syncReferenceData(List<RuntimeNavigationPoint> points);
 }

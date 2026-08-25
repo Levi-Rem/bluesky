@@ -31,7 +31,6 @@ class HttpMapDataClientTest {
         MapLayersResponse response = client.fetch();
 
         assertThat(response.isAvailable()).isTrue();
-        assertThat(response.getRevision()).isEqualTo(18L);
         assertThat(response.getLayers()).hasSize(4);
         server.verify();
     }
@@ -75,10 +74,10 @@ class HttpMapDataClientTest {
     }
 
     private String validSnapshot() {
-        return "{\"revision\":18,\"layers\":["
+        return "{\"layers\":["
                 + "{\"category\":\"WAYPOINT\",\"name\":\"航路点\",\"count\":1,\"features\":[{"
                 + "\"featureId\":\"waypoint:PUD\",\"featureType\":\"WAYPOINT\","
-                + "\"code\":\"PUD\",\"name\":\"浦东\","
+                + "\"pointType\":\"VOR\",\"code\":\"PUD\",\"name\":\"浦东\","
                 + "\"geometry\":{\"type\":\"Point\",\"coordinates\":[121.5,31.2]}}]},"
                 + emptyLayer("AIRWAY", "航线") + ","
                 + emptyLayer("PHYSICAL_SECTOR", "扇区") + ","

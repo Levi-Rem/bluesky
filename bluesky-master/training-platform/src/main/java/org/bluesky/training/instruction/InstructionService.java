@@ -11,6 +11,8 @@ import org.bluesky.training.persistence.AircraftMapper;
 import org.bluesky.training.persistence.AircraftRow;
 import org.bluesky.training.persistence.InstructionMapper;
 import org.bluesky.training.persistence.InstructionRow;
+import org.bluesky.training.mapdata.ReferenceDataResolver;
+import org.bluesky.training.mapdata.ReferenceDataException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,16 +29,19 @@ public class InstructionService {
     private final SimulationGateway simulationGateway;
     private final ObjectMapper objectMapper;
     private final EventStreamService eventStreamService;
+    private final ReferenceDataResolver referenceDataResolver;
 
     public InstructionService(AircraftMapper aircraftMapper, InstructionMapper instructionMapper,
                               InstructionParser parser, SimulationGateway simulationGateway,
-                              ObjectMapper objectMapper, EventStreamService eventStreamService) {
+                              ObjectMapper objectMapper, EventStreamService eventStreamService,
+                              ReferenceDataResolver referenceDataResolver) {
         this.aircraftMapper = aircraftMapper;
         this.instructionMapper = instructionMapper;
         this.parser = parser;
         this.simulationGateway = simulationGateway;
         this.objectMapper = objectMapper;
         this.eventStreamService = eventStreamService;
+        this.referenceDataResolver = referenceDataResolver;
     }
 
     @Transactional(noRollbackFor = {AdapterRejectedException.class, AdapterUnavailableException.class})
@@ -59,7 +64,14 @@ public class InstructionService {
 
         InstructionRow row = new InstructionRow();
         row.setId(UUID.randomUUID().toString());
-        EngineInstructionCommand command = parsed.getCommand().withCommandId(row.getId());
+        EngineInstructionCommand command = referenceDataResolver.resolve(
+                parsed.getCommand().withCommandId(row.getId()));
+        if ("RTE".equals(command.getType()) && !command.getRoutePoints().isEmpty()
+                && !aircraft.getDestination().equals(
+                command.getRoutePoints().get(command.getRoutePoints().size() - 1).getCode())) {
+            throw new ReferenceDataException("ROUTE_DESTINATION_MISMATCH",
+                    "RTE 最后一点必须是落地机场：" + aircraft.getDestination());
+        }
         row.setExerciseAircraftId(aircraftId);
         row.setRawText(parsed.getNormalizedText());
         row.setInstructionType(parsed.getCommand().getType());

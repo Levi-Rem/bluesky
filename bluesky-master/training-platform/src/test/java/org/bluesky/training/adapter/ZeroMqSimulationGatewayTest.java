@@ -1,6 +1,7 @@
 package org.bluesky.training.adapter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.bluesky.training.mapdata.RuntimeNavigationPoint;
 import org.junit.jupiter.api.Test;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
@@ -10,6 +11,7 @@ import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -95,6 +97,26 @@ class ZeroMqSimulationGatewayTest {
                         .hasMessageContaining("未知航路点"));
 
         assertThat(exchange.body).contains("\"type\":\"START\"");
+    }
+
+    @Test
+    void sendsCompleteReferencePointCatalogAndReadsCounts() throws Exception {
+        RecordedRequest exchange = exchangeFor(
+                "{\"protocolVersion\":\"1.0\",\"requestId\":\"accepted\","
+                        + "\"success\":true,\"code\":\"OK\",\"message\":\"\","
+                        + "\"payload\":{\"total\":1,\"counts\":{\"VOR\":1}}}",
+                gateway -> {
+                    ReferenceDataSyncResult result = gateway.syncReferenceData(Collections.singletonList(
+                            new RuntimeNavigationPoint("nav-1", "PUD", "PUD", "VOR",
+                                    31.1, 121.8, null)));
+                    assertThat(result.getTotal()).isEqualTo(1);
+                    assertThat(result.getCounts()).containsEntry("VOR", 1);
+                });
+
+        assertThat(exchange.body)
+                .contains("\"type\":\"REFERENCE_DATA_SYNC\"")
+                .contains("\"code\":\"PUD\"")
+                .doesNotContain("AIRWAY");
     }
 
     @Test

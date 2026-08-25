@@ -26,6 +26,8 @@ const displaySettingsTrigger = ref<HTMLButtonElement | null>(null)
 
 const group = computed(() => store.bootstrap?.exerciseGroup)
 const engine = computed(() => store.bootstrap?.engine)
+const referenceData = computed(() => store.bootstrap?.referenceData)
+const operationalReady = computed(() => Boolean(engine.value?.connected && referenceData.value?.ready))
 const fallbackSettings = DEFAULT_DISPLAY_SETTINGS
 const colors = computed(() => previewSettings.value ?? store.bootstrap?.uiParameters ?? fallbackSettings)
 const savedSettings = computed<DisplaySettings>(() =>
@@ -130,14 +132,21 @@ onMounted(() => {
       @select="store.selectAircraft" />
 
     <header v-if="!topHidden" class="top-bar panel">
-      <button class="run-button" :disabled="busy || !engine?.connected" @click="toggleRun">
+      <button class="run-button" :disabled="busy || !operationalReady"
+        :title="operationalReady ? '开始或暂停练习' : (referenceData?.message || engine?.message)" @click="toggleRun">
         {{ group?.state === 'RUNNING' ? 'Ⅱ' : '▶' }}
       </button>
       <time>{{ formatTime(group?.simulationTimeSeconds) }}</time>
       <span>{{ store.aircraft.length }}/{{ store.aircraft.length }}</span>
       <span class="engine-light" :class="engine?.connected ? 'connected' : 'disconnected'" :title="engine?.message" />
-      <button ref="displaySettingsTrigger" class="display-settings-trigger" title="显示设置"
-        @click="openDisplaySettings">显示设置</button>
+      <span class="engine-light" :class="referenceData?.ready ? 'connected' : 'disconnected'"
+        :title="referenceData?.message" />
+      <div class="top-bar-actions">
+        <button ref="displaySettingsTrigger" class="display-settings-trigger" title="显示设置"
+          @click="openDisplaySettings">显示设置</button>
+        <MapLayerMenu :available="store.mapDataAvailable" :layers="store.mapLayers"
+          :visibility="store.mapLayerVisibility" @toggle="toggleMapLayer" />
+      </div>
       <button class="collapse" title="折叠状态栏" @click="topHidden = true">‹</button>
     </header>
     <button v-else class="restore top-restore" title="展开状态栏" @click="topHidden = false">›</button>
@@ -145,9 +154,7 @@ onMounted(() => {
     <aside v-if="!leftHidden" class="aircraft-list panel">
       <div class="aircraft-list-actions">
         <div class="aircraft-list-primary-actions">
-          <CreateAircraftDialog :disabled="!engine?.connected" @created="store.load" />
-          <MapLayerMenu :available="store.mapDataAvailable" :layers="store.mapLayers"
-            :visibility="store.mapLayerVisibility" @toggle="toggleMapLayer" />
+          <CreateAircraftDialog :disabled="!operationalReady" @created="store.load" />
         </div>
         <button class="collapse" title="隐藏航空器列表" @click="leftHidden = true">‹</button>
       </div>
@@ -157,14 +164,14 @@ onMounted(() => {
           <span>{{ item.callsign }} {{ item.aircraftType }} {{ item.origin }}/{{ item.destination }}</span>
           <span>{{ item.route.slice(0, 3).join(' ') }} {{ item.activeInstruction ?? '' }}</span>
         </button>
-        <button class="delete-aircraft" :disabled="deletingId === item.id || !engine?.connected"
+        <button class="delete-aircraft" :disabled="deletingId === item.id || !operationalReady"
           :title="`删除 ${item.callsign}`" @click="deleteAircraft(item.id)">×</button>
       </div>
     </aside>
     <button v-else class="restore left-restore" title="展开航空器列表" @click="leftHidden = false">›</button>
 
     <section class="command-dock">
-      <input v-model="command" :disabled="!store.selectedAircraft || !engine?.connected"
+      <input v-model="command" :disabled="!store.selectedAircraft || !operationalReady"
         :placeholder="store.selectedAircraft ? store.selectedAircraft.callsign : '选择航空器'"
         autocomplete="off" spellcheck="false" @keydown="submitCommand" />
       <div class="instruction-queue panel">

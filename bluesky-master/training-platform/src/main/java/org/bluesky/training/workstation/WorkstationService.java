@@ -10,6 +10,7 @@ import org.bluesky.training.persistence.BootstrapMapper;
 import org.bluesky.training.persistence.ExerciseGroupRow;
 import org.bluesky.training.persistence.InstructionMapper;
 import org.bluesky.training.persistence.TerminalRow;
+import org.bluesky.training.mapdata.MapDataService;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -23,15 +24,18 @@ public class WorkstationService {
     private final AircraftService aircraftService;
     private final InstructionMapper instructionMapper;
     private final DisplaySettingsService displaySettingsService;
+    private final MapDataService mapDataService;
 
     public WorkstationService(BootstrapMapper bootstrapMapper, SimulationGateway simulationGateway,
                               AircraftService aircraftService, InstructionMapper instructionMapper,
-                              DisplaySettingsService displaySettingsService) {
+                              DisplaySettingsService displaySettingsService,
+                              MapDataService mapDataService) {
         this.bootstrapMapper = bootstrapMapper;
         this.simulationGateway = simulationGateway;
         this.aircraftService = aircraftService;
         this.instructionMapper = instructionMapper;
         this.displaySettingsService = displaySettingsService;
+        this.mapDataService = mapDataService;
     }
 
     public WorkstationBootstrapResponse bootstrap() {
@@ -46,6 +50,7 @@ public class WorkstationService {
                 new WorkstationBootstrapResponse.ExerciseGroupView(
                         group.getId(), group.getName(), group.getState(), group.getSimulationTimeSeconds()),
                 engineHealth,
+                mapDataService.referenceDataState(),
                 new WorkstationBootstrapResponse.UiParametersView(
                         parameters.get("ui.theme"), displaySettings),
                 displaySettingsService.defaults(),

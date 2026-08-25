@@ -24,8 +24,8 @@ public class HttpMapDataClient implements MapDataClient {
     @Autowired
     public HttpMapDataClient(RestTemplateBuilder builder,
             @Value("${bluesky.data-prep.base-url:http://127.0.0.1:8090}") String baseUrl,
-            @Value("${bluesky.data-prep.connect-timeout-millis:1000}") long connectTimeoutMillis,
-            @Value("${bluesky.data-prep.read-timeout-millis:2000}") long readTimeoutMillis) {
+            @Value("${bluesky.data-prep.connect-timeout-millis:3000}") long connectTimeoutMillis,
+            @Value("${bluesky.data-prep.read-timeout-millis:3000}") long readTimeoutMillis) {
         this.restTemplate = builder
                 .setConnectTimeout(Duration.ofMillis(connectTimeoutMillis))
                 .setReadTimeout(Duration.ofMillis(readTimeoutMillis))
@@ -42,16 +42,18 @@ public class HttpMapDataClient implements MapDataClient {
     public MapLayersResponse fetch() {
         RemoteSnapshot remote = restTemplate.getForObject(runtimeLayersUrl, RemoteSnapshot.class);
         validate(remote);
-        return MapLayersResponse.available(remote.getRevision(), remote.getLayers());
+        return MapLayersResponse.available(remote.getLayers());
     }
 
     void validate(RemoteSnapshot remote) {
-        if (remote == null || remote.getRevision() == null || remote.getLayers() == null
+        if (remote == null || remote.getLayers() == null
                 || remote.getLayers().size() != EXPECTED_CATEGORIES.size()) {
             throw new IllegalStateException("数据准备地图快照结构不完整");
         }
         Set<String> categories = new HashSet<>();
         Set<String> featureIds = new HashSet<>();
+        Set<String> pointCodes = new HashSet<>();
+        Set<String> airwayCodes = new HashSet<>();
         for (Map<String, Object> layer : remote.getLayers()) {
             Object category = layer == null ? null : layer.get("category");
             if (category == null || !EXPECTED_CATEGORIES.contains(String.valueOf(category))) {
@@ -59,7 +61,7 @@ public class HttpMapDataClient implements MapDataClient {
             }
             String categoryName = String.valueOf(category);
             categories.add(categoryName);
-            validateLayer(categoryName, layer, featureIds);
+            validateLayer(categoryName, layer, featureIds, pointCodes, airwayCodes);
         }
         if (!categories.equals(EXPECTED_CATEGORIES)) {
             throw new IllegalStateException("数据准备地图快照分类不完整");
@@ -67,7 +69,8 @@ public class HttpMapDataClient implements MapDataClient {
     }
 
     @SuppressWarnings("unchecked")
-    private void validateLayer(String category, Map<String, Object> layer, Set<String> featureIds) {
+    private void validateLayer(String category, Map<String, Object> layer, Set<String> featureIds,
+                               Set<String> pointCodes, Set<String> airwayCodes) {
         if (!nonBlank(layer.get("name")) || !(layer.get("count") instanceof Number)
                 || !(layer.get("features") instanceof List)) {
             throw new IllegalStateException("数据准备地图图层结构不完整: " + category);
@@ -80,13 +83,14 @@ public class HttpMapDataClient implements MapDataClient {
             if (!(value instanceof Map)) {
                 throw new IllegalStateException("数据准备地图要素结构不完整: " + category);
             }
-            validateFeature(category, (Map<String, Object>) value, featureIds);
+            validateFeature(category, (Map<String, Object>) value, featureIds, pointCodes, airwayCodes);
         }
     }
 
     @SuppressWarnings("unchecked")
     private void validateFeature(String category, Map<String, Object> feature,
-                                 Set<String> featureIds) {
+                                 Set<String> featureIds, Set<String> pointCodes,
+                                 Set<String> airwayCodes) {
         String featureId = text(feature.get("featureId"));
         String featureType = text(feature.get("featureType"));
         if (featureId == null || featureType == null || !featureIds.add(featureId)
@@ -100,10 +104,10 @@ public class HttpMapDataClient implements MapDataClient {
         boolean valid;
         if ("WAYPOINT".equals(category)) {
             valid = "WAYPOINT".equals(featureType) && "Point".equals(geometryType)
-                    && validPoint(coordinates);
+                    && validPoint(coordinates) && validWaypointMetadata(feature, pointCodes);
         } else if ("AIRWAY".equals(category)) {
             valid = "AIRWAY".equals(featureType) && "LineString".equals(geometryType)
-                    && validLine(coordinates);
+                    && validLine(coordinates) && validAirwayMetadata(feature, airwayCodes);
         } else if ("PHYSICAL_SECTOR".equals(category)) {
             valid = "PHYSICAL_SECTOR".equals(featureType) && "Polygon".equals(geometryType)
                     && validPolygon(coordinates);
@@ -116,6 +120,28 @@ public class HttpMapDataClient implements MapDataClient {
                     || ("MultiPolygon".equals(geometryType) && validMultiPolygon(coordinates)));
         }
         if (!valid) throw new IllegalStateException("数据准备地图要素几何不合法: " + featureId);
+    }
+
+    private boolean validWaypointMetadata(Map<String, Object> feature, Set<String> pointCodes) {
+        String code = text(feature.get("code"));
+        String pointType = text(feature.get("pointType"));
+        if (code == null || pointType == null || !Arrays.asList(
+                "WAYPOINT", "AIRPORT", "VOR", "NDB", "DME", "VOR_DME", "ILS")
+                .contains(pointType)) return false;
+        if (!pointCodes.add(code.trim().toUpperCase(java.util.Locale.ROOT))) return false;
+        return feature.get("elevationMeters") == null || feature.get("elevationMeters") instanceof Number;
+    }
+
+    private boolean validAirwayMetadata(Map<String, Object> feature, Set<String> airwayCodes) {
+        String code = text(feature.get("code"));
+        if (code == null || !airwayCodes.add(code.trim().toUpperCase(java.util.Locale.ROOT))) return false;
+        if (!(feature.get("pointIds") instanceof List) || !(feature.get("pointCodes") instanceof List)
+                || !(feature.get("segmentDirections") instanceof List)) return false;
+        List<?> ids = (List<?>) feature.get("pointIds");
+        List<?> codes = (List<?>) feature.get("pointCodes");
+        List<?> directions = (List<?>) feature.get("segmentDirections");
+        return ids.size() >= 2 && ids.size() == codes.size() && directions.size() == ids.size() - 1
+                && text(feature.get("airwayDirection")) != null;
     }
 
     private boolean validPoint(Object value) {
@@ -169,11 +195,8 @@ public class HttpMapDataClient implements MapDataClient {
     }
 
     public static class RemoteSnapshot {
-        private Long revision;
         private List<Map<String, Object>> layers;
 
-        public Long getRevision() { return revision; }
-        public void setRevision(Long revision) { this.revision = revision; }
         public List<Map<String, Object>> getLayers() { return layers; }
         public void setLayers(List<Map<String, Object>> layers) { this.layers = layers; }
     }
