@@ -28,6 +28,7 @@ const group = computed(() => store.bootstrap?.exerciseGroup)
 const engine = computed(() => store.bootstrap?.engine)
 const referenceData = computed(() => store.bootstrap?.referenceData)
 const operationalReady = computed(() => Boolean(engine.value?.connected && referenceData.value?.ready))
+const engineReady = computed(() => Boolean(engine.value?.connected))
 const fallbackSettings = DEFAULT_DISPLAY_SETTINGS
 const colors = computed(() => previewSettings.value ?? store.bootstrap?.uiParameters ?? fallbackSettings)
 const savedSettings = computed<DisplaySettings>(() =>
@@ -164,14 +165,14 @@ onMounted(() => {
           <span>{{ item.callsign }} {{ item.aircraftType }} {{ item.origin }}/{{ item.destination }}</span>
           <span>{{ item.route.slice(0, 3).join(' ') }} {{ item.activeInstruction ?? '' }}</span>
         </button>
-        <button class="delete-aircraft" :disabled="deletingId === item.id || !operationalReady"
+        <button class="delete-aircraft" :disabled="deletingId === item.id || !engineReady"
           :title="`删除 ${item.callsign}`" @click="deleteAircraft(item.id)">×</button>
       </div>
     </aside>
     <button v-else class="restore left-restore" title="展开航空器列表" @click="leftHidden = false">›</button>
 
     <section class="command-dock">
-      <input v-model="command" :disabled="!store.selectedAircraft || !operationalReady"
+      <input v-model="command" :disabled="!store.selectedAircraft || !engineReady"
         :placeholder="store.selectedAircraft ? store.selectedAircraft.callsign : '选择航空器'"
         autocomplete="off" spellcheck="false" @keydown="submitCommand" />
       <div class="instruction-queue panel">

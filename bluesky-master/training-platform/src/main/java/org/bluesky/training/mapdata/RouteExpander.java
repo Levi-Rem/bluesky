@@ -107,12 +107,12 @@ public final class RouteExpander {
 
     private RuntimeNavigationPoint resolvePoint(String token) {
         String code = normalize(token);
+        RuntimeNavigationPoint point = pointsByCode.get(code);
+        if (point != null) return point;
         if (unsupported(code)) {
             throw error("UNSUPPORTED_ROUTE_TOKEN", "不支持的航线标记：" + code);
         }
-        RuntimeNavigationPoint point = pointsByCode.get(code);
-        if (point == null) throw error("UNKNOWN_NAVIGATION_POINT", "导航点不存在：" + code);
-        return point;
+        throw error("UNKNOWN_NAVIGATION_POINT", "导航点不存在：" + code);
     }
 
     private boolean unsupported(String token) {

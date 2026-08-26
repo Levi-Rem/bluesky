@@ -104,7 +104,7 @@ class ZeroMqSimulationGatewayTest {
         RecordedRequest exchange = exchangeFor(
                 "{\"protocolVersion\":\"1.0\",\"requestId\":\"accepted\","
                         + "\"success\":true,\"code\":\"OK\",\"message\":\"\","
-                        + "\"payload\":{\"total\":1,\"counts\":{\"VOR\":1}}}",
+                        + "\"payload\":{\"accepted\":true,\"totalCount\":1,\"counts\":{\"VOR\":1}}}",
                 gateway -> {
                     ReferenceDataSyncResult result = gateway.syncReferenceData(Collections.singletonList(
                             new RuntimeNavigationPoint("nav-1", "PUD", "PUD", "VOR",

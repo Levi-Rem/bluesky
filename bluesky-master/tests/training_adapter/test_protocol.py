@@ -34,7 +34,7 @@ class FakeEngine:
 
     def sync_reference_data(self, payload):
         self.operations.append(("REFERENCE_DATA_SYNC", payload))
-        return {"total": len(payload.get("points", [])), "counts": {"VOR": 1}}
+        return {"accepted": True, "totalCount": len(payload.get("points", [])), "counts": {"VOR": 1}}
 
     def create_aircraft(self, payload):
         self.operations.append(("AIRCRAFT_CREATE", payload))
@@ -163,7 +163,8 @@ class AdapterProtocolTest(unittest.TestCase):
         })
 
         self.assertTrue(response["success"])
-        self.assertEqual(1, response["payload"]["total"])
+        self.assertTrue(response["payload"]["accepted"])
+        self.assertEqual(1, response["payload"]["totalCount"])
         self.assertEqual(("REFERENCE_DATA_SYNC", payload), engine.operations[-1])
 
     def test_aircraft_create_payload_reaches_engine(self):

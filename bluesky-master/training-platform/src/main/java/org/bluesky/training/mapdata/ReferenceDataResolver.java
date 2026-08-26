@@ -48,6 +48,7 @@ public class ReferenceDataResolver {
 
     public EngineInstructionCommand resolve(EngineInstructionCommand command) {
         if (!enforcementEnabled) return command;
+        if (!"DCT".equals(command.getType()) && !"RTE".equals(command.getType())) return command;
         requireReady();
         RuntimeReferenceCatalog catalog = mapDataService.catalog();
         if ("DCT".equals(command.getType())) {

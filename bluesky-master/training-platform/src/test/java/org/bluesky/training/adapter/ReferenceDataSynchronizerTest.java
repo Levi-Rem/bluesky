@@ -3,6 +3,8 @@ package org.bluesky.training.adapter;
 import org.bluesky.training.mapdata.MapDataClient;
 import org.bluesky.training.mapdata.MapDataService;
 import org.bluesky.training.mapdata.MapLayersResponse;
+import org.bluesky.training.event.EventStreamService;
+import org.bluesky.training.adapter.AdapterUnavailableException;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -18,6 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 class ReferenceDataSynchronizerTest {
     @Test
@@ -29,7 +32,9 @@ class ReferenceDataSynchronizerTest {
         SimulationGateway gateway = mock(SimulationGateway.class);
         when(gateway.syncReferenceData(anyList()))
                 .thenReturn(new ReferenceDataSyncResult(1, Collections.singletonMap("VOR", 1)));
-        ReferenceDataSynchronizer synchronizer = new ReferenceDataSynchronizer(gateway, mapDataService);
+        EventStreamService events = mock(EventStreamService.class);
+        ReferenceDataSynchronizer synchronizer = new ReferenceDataSynchronizer(
+                gateway, mapDataService, events, 3);
 
         synchronizer.onConnectionState(true);
         synchronizer.onConnectionState(true);
@@ -52,10 +57,65 @@ class ReferenceDataSynchronizerTest {
         when(gateway.syncReferenceData(anyList()))
                 .thenReturn(new ReferenceDataSyncResult(0, Collections.emptyMap()));
 
-        new ReferenceDataSynchronizer(gateway, mapDataService).onConnectionState(true);
+        new ReferenceDataSynchronizer(gateway, mapDataService,
+                mock(EventStreamService.class), 3).onConnectionState(true);
 
         assertThat(mapDataService.referenceDataState().isReady()).isFalse();
         assertThat(mapDataService.referenceDataState().getStatus()).isEqualTo("SYNC_FAILED");
+    }
+
+    @Test
+    void retriesTransientSyncFailureOnSameConnectionWithoutRefetchingSource() {
+        MapDataClient client = mock(MapDataClient.class);
+        when(client.fetch()).thenReturn(snapshot());
+        MapDataService mapDataService = new MapDataService(client);
+        mapDataService.initializeOnce();
+        SimulationGateway gateway = mock(SimulationGateway.class);
+        when(gateway.syncReferenceData(anyList()))
+                .thenThrow(new AdapterUnavailableException("timeout"))
+                .thenReturn(new ReferenceDataSyncResult(1, Collections.singletonMap("VOR", 1)));
+        ReferenceDataSynchronizer synchronizer = new ReferenceDataSynchronizer(
+                gateway, mapDataService, mock(EventStreamService.class), 3);
+
+        synchronizer.onConnectionState(true);
+        assertThat(mapDataService.referenceDataState().getStatus()).isEqualTo("SYNC_FAILED");
+        synchronizer.onConnectionState(true);
+
+        assertThat(mapDataService.referenceDataState().isReady()).isTrue();
+        verify(gateway, times(2)).syncReferenceData(anyList());
+        verify(client, times(1)).fetch();
+    }
+
+    @Test
+    void keepsSourceFailureClassificationWhenEngineIsConnected() {
+        MapDataClient client = mock(MapDataClient.class);
+        when(client.fetch()).thenThrow(new IllegalStateException("bad snapshot"));
+        MapDataService mapDataService = new MapDataService(client);
+        mapDataService.initializeOnce();
+        SimulationGateway gateway = mock(SimulationGateway.class);
+
+        new ReferenceDataSynchronizer(gateway, mapDataService,
+                mock(EventStreamService.class), 3).onConnectionState(true);
+
+        assertThat(mapDataService.referenceDataState().getStatus()).isEqualTo("VALIDATION_FAILED");
+        verify(gateway, times(0)).syncReferenceData(anyList());
+    }
+
+    @Test
+    void pauseFailureDoesNotUndoSuccessfulReferenceDataSync() {
+        MapDataClient client = mock(MapDataClient.class);
+        when(client.fetch()).thenReturn(snapshot());
+        MapDataService mapDataService = new MapDataService(client);
+        mapDataService.initializeOnce();
+        SimulationGateway gateway = mock(SimulationGateway.class);
+        when(gateway.syncReferenceData(anyList()))
+                .thenReturn(new ReferenceDataSyncResult(1, Collections.singletonMap("VOR", 1)));
+        doThrow(new AdapterUnavailableException("pause timeout")).when(gateway).pause();
+
+        new ReferenceDataSynchronizer(gateway, mapDataService,
+                mock(EventStreamService.class), 3).onConnectionState(true);
+
+        assertThat(mapDataService.referenceDataState().isReady()).isTrue();
     }
 
     private static MapLayersResponse snapshot() {

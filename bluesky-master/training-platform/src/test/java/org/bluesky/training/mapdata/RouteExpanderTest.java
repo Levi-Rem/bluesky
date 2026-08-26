@@ -42,6 +42,18 @@ class RouteExpanderTest {
                 .extracting("code").isEqualTo("UNSUPPORTED_ROUTE_TOKEN");
     }
 
+    @Test
+    void acceptsRealPointWhoseCodeStartsWithSidOrStar() {
+        RuntimeNavigationPoint sidno = point("SIDNO", 120.0, 30.0);
+        RuntimeNavigationPoint starl = point("STARL", 120.1, 30.1);
+        RouteExpander prefixExpander = new RouteExpander(
+                Arrays.asList(sidno, starl), Collections.emptyList());
+
+        assertThat(prefixExpander.expand(Arrays.asList("SIDNO", "STARL")))
+                .extracting(RuntimeNavigationPoint::getCode)
+                .containsExactly("SIDNO", "STARL");
+    }
+
     private RuntimeNavigationPoint point(String code, double longitude, double latitude) {
         return new RuntimeNavigationPoint("point-" + code, code, code, "WAYPOINT",
                 latitude, longitude, null);

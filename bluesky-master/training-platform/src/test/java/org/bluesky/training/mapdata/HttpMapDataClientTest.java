@@ -3,6 +3,7 @@ package org.bluesky.training.mapdata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
@@ -11,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 class HttpMapDataClientTest {
     private MockRestServiceServer server;
@@ -58,11 +60,41 @@ class HttpMapDataClientTest {
     }
 
     @Test
+    void rejectsAirwayWhosePointMetadataDoesNotMatchGeometryLength() {
+        String invalidAirway = "{\"category\":\"AIRWAY\",\"name\":\"航线\",\"count\":1,\"features\":[{"
+                + "\"featureId\":\"airway:A1\",\"featureType\":\"AIRWAY\",\"code\":\"A1\","
+                + "\"airwayDirection\":\"BOTH\",\"pointIds\":[\"1\",\"2\"],"
+                + "\"pointCodes\":[\"PUD\",\"CEN\"],\"segmentDirections\":[\"BOTH\"],"
+                + "\"geometry\":{\"type\":\"LineString\","
+                + "\"coordinates\":[[121.5,31.2],[121.6,31.3],[121.7,31.4]]}}]}";
+        String body = validSnapshot().replace(emptyLayer("AIRWAY", "航线"), invalidAirway);
+        server.expect(requestTo("http://data-prep/api/map/runtime-layers"))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(client::fetch)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("几何不合法");
+    }
+
+    @Test
     void propagatesNonSuccessResponsesForSilentDegradationByTheService() {
         server.expect(requestTo("http://data-prep/api/map/runtime-layers"))
                 .andRespond(withServerError());
 
         assertThatThrownBy(client::fetch).isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void preservesRuntimeNavigationValidationErrorFromDataPreparation() {
+        server.expect(requestTo("http://data-prep/api/map/runtime-layers"))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"code\":\"INVALID_RUNTIME_NAV_DATA\","
+                                + "\"message\":\"导航点代码重复：PUD\"}"));
+
+        assertThatThrownBy(client::fetch)
+                .isInstanceOf(ReferenceDataException.class)
+                .hasMessageContaining("PUD");
     }
 
     @Test

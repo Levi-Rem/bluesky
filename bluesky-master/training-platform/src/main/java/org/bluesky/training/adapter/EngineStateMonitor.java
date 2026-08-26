@@ -1,7 +1,6 @@
 package org.bluesky.training.adapter;
 
 import org.bluesky.training.event.EventStreamService;
-import org.bluesky.training.mapdata.MapDataService;
 import org.bluesky.training.persistence.BootstrapMapper;
 import org.bluesky.training.persistence.ExerciseGroupRow;
 import org.bluesky.training.exercise.ExerciseGroupResponse;
@@ -15,18 +14,15 @@ public class EngineStateMonitor {
     private final SimulationGateway simulationGateway;
     private final EventStreamService eventStreamService;
     private final ReferenceDataSynchronizer referenceDataSynchronizer;
-    private final MapDataService mapDataService;
     private final BootstrapMapper bootstrapMapper;
     private Boolean lastConnected;
 
     public EngineStateMonitor(SimulationGateway simulationGateway, EventStreamService eventStreamService,
                               ReferenceDataSynchronizer referenceDataSynchronizer,
-                              MapDataService mapDataService,
                               BootstrapMapper bootstrapMapper) {
         this.simulationGateway = simulationGateway;
         this.eventStreamService = eventStreamService;
         this.referenceDataSynchronizer = referenceDataSynchronizer;
-        this.mapDataService = mapDataService;
         this.bootstrapMapper = bootstrapMapper;
     }
 
@@ -36,12 +32,11 @@ public class EngineStateMonitor {
         if (health == null) {
             health = new EngineHealth(false, "DISCONNECTED", "UNKNOWN", "BlueSky 状态不可用");
         }
+        referenceDataSynchronizer.onConnectionState(health.isConnected());
         if (lastConnected == null || lastConnected.booleanValue() != health.isConnected()) {
             lastConnected = health.isConnected();
-            referenceDataSynchronizer.onConnectionState(health.isConnected());
             if (!health.isConnected()) pauseExerciseAfterDisconnect();
             eventStreamService.publish("engine-state", health);
-            eventStreamService.publish("reference-data-state", mapDataService.referenceDataState());
         }
         eventStreamService.publish("heartbeat", Instant.now().toString());
     }

@@ -130,6 +130,21 @@ class RuntimeMapApiTest {
     }
 
     @Test
+    void normalizesAllSupportedLegacyPointTypeAliases() throws Exception {
+        jdbc.update("INSERT INTO navigation_point "
+                + "(id,code,name,point_type,longitude,latitude,status,source_type,deleted) VALUES "
+                + "('runtime-report','RPT1','报告点','REPORT',120,30,'ENABLED','MANUAL',FALSE),"
+                + "('runtime-airport-i','APT-I','机场点','AIRPORT_I',121,31,'ENABLED','MANUAL',FALSE),"
+                + "('runtime-vordme','VDM1','导航台','VORDME',122,32,'ENABLED','MANUAL',FALSE)");
+
+        mockMvc.perform(get("/api/map/runtime-layers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layers[0].features[?(@.code=='RPT1')].pointType").value("WAYPOINT"))
+                .andExpect(jsonPath("$.layers[0].features[?(@.code=='APT-I')].pointType").value("AIRPORT"))
+                .andExpect(jsonPath("$.layers[0].features[?(@.code=='VDM1')].pointType").value("VOR_DME"));
+    }
+
+    @Test
     void rejectsSnapshotWhenAirwayReferencesDeletedWaypoint() throws Exception {
         jdbc.update("UPDATE navigation_point SET deleted=TRUE WHERE id='seed-nav-sasan'");
 
@@ -147,6 +162,36 @@ class RuntimeMapApiTest {
         mockMvc.perform(get("/api/map/runtime-layers"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("INVALID_RUNTIME_NAV_DATA"));
+    }
+
+    @Test
+    void mapsHistoricalDisabledAirportSegmentReferenceToCanonicalAirport() throws Exception {
+        jdbc.update("INSERT INTO airport "
+                + "(id,code,name,longitude,latitude,status,source_type,deleted) "
+                + "VALUES ('runtime-canonical-airport','TAPT','规范机场',120.5,30.5,'ENABLED','MANUAL',FALSE)");
+        jdbc.update("INSERT INTO navigation_point "
+                + "(id,code,name,point_type,longitude,latitude,status,source_type,deleted) "
+                + "VALUES ('runtime-legacy-airport','TAPT','旧机场点','AIRPORT_I',120,30,'DISABLED','ACCOPS_ASF',FALSE)");
+        jdbc.update("INSERT INTO airway "
+                + "(id,code,name,airway_direction,status,source_type,deleted) "
+                + "VALUES ('runtime-airway-airport','T-AIRPORT','机场航路','TWO_WAY','ENABLED','MANUAL',FALSE)");
+        String destinationId = jdbc.queryForObject(
+                "SELECT id FROM navigation_point WHERE code='PUD'", String.class);
+        jdbc.update("INSERT INTO airway_segment "
+                + "(id,airway_id,order_no,start_point_id,end_point_id,segment_direction,deleted) "
+                + "VALUES ('runtime-airport-segment','runtime-airway-airport',0,"
+                + "'runtime-legacy-airport',?,NULL,FALSE)", destinationId);
+
+        mockMvc.perform(get("/api/map/runtime-layers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layers[0].features[?(@.code=='TAPT')].featureId")
+                        .value("airport:runtime-canonical-airport"))
+                .andExpect(jsonPath("$.layers[1].features[?(@.code=='T-AIRPORT')].pointIds[0]")
+                        .value("runtime-canonical-airport"))
+                .andExpect(jsonPath("$.layers[1].features[?(@.code=='T-AIRPORT')].geometry.coordinates[0][0]")
+                        .value(120.5))
+                .andExpect(jsonPath("$.layers[1].features[?(@.code=='T-AIRPORT')].segmentDirections[0]")
+                        .value("BOTH"));
     }
 
     private void insertSectorPoint(String id, int order, double longitude, double latitude) {

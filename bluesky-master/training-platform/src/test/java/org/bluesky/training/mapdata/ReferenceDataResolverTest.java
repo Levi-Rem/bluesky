@@ -49,6 +49,9 @@ class ReferenceDataResolverTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> resolver.resolve(dct))
                 .isInstanceOf(ReferenceDataException.class)
                 .hasMessageContaining("等待");
+        EngineInstructionCommand heading = new EngineInstructionCommand(
+                "CCA1", "HDG", 90d, null, null, null, null, null, Collections.emptyList());
+        assertThat(resolver.resolve(heading)).isSameAs(heading);
     }
 
     private static MapDataService readyService() {

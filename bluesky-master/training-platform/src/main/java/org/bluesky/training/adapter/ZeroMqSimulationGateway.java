@@ -114,10 +114,14 @@ public class ZeroMqSimulationGateway implements SimulationGateway, AutoCloseable
         ObjectNode payload = objectMapper.createObjectNode();
         payload.set("points", objectMapper.valueToTree(points));
         JsonNode response = request("REFERENCE_DATA_SYNC", payload);
+        if (!response.path("accepted").asBoolean(false)) {
+            throw new AdapterRejectedException("REFERENCE_DATA_REJECTED",
+                    "BlueSky Adapter 未确认导航参考数据");
+        }
         Map<String, Integer> counts = new LinkedHashMap<>();
         response.path("counts").fields().forEachRemaining(entry ->
                 counts.put(entry.getKey(), entry.getValue().asInt()));
-        return new ReferenceDataSyncResult(response.path("total").asInt(), counts);
+        return new ReferenceDataSyncResult(response.path("totalCount").asInt(), counts);
     }
 
     private JsonNode request(String type, JsonNode payload) {

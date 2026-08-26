@@ -1,6 +1,7 @@
 package org.bluesky.training.mapdata;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,7 +33,7 @@ class MapDataServiceTest {
     @Test
     void doesNotRetryAfterStartupFailure() {
         MapDataClient client = mock(MapDataClient.class);
-        when(client.fetch()).thenThrow(new IllegalStateException("timeout"));
+        when(client.fetch()).thenThrow(new ResourceAccessException("timeout"));
         MapDataService service = new MapDataService(client);
 
         service.initializeOnce();
@@ -42,6 +43,19 @@ class MapDataServiceTest {
         assertThat(service.referenceDataState().isReady()).isFalse();
         assertThat(service.referenceDataState().getStatus()).isEqualTo("SOURCE_UNAVAILABLE");
         verify(client, times(1)).fetch();
+    }
+
+    @Test
+    void preservesValidationFailureStatusAndDiagnosticMessage() {
+        MapDataClient client = mock(MapDataClient.class);
+        when(client.fetch()).thenThrow(
+                new ReferenceDataException("INVALID_RUNTIME_NAV_DATA", "导航点代码重复：PUD"));
+        MapDataService service = new MapDataService(client);
+
+        service.initializeOnce();
+
+        assertThat(service.referenceDataState().getStatus()).isEqualTo("VALIDATION_FAILED");
+        assertThat(service.referenceDataState().getMessage()).contains("PUD");
     }
 
     static MapLayersResponse snapshot() {

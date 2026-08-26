@@ -129,16 +129,25 @@ public class AirwayService {
                 throw ApiException.badRequest("航段起止点必填");
             }
             if (!knownIds.contains(segment.getStartPointId())) {
-                throw ApiException.badRequest("起点导航点不存在或已删除：" + segment.getStartPointId());
+                throw ApiException.badRequest("起点导航点不存在、未启用或类型不支持：" + segment.getStartPointId());
             }
             if (!knownIds.contains(segment.getEndPointId())) {
-                throw ApiException.badRequest("终点导航点不存在或已删除：" + segment.getEndPointId());
+                throw ApiException.badRequest("终点导航点不存在、未启用或类型不支持：" + segment.getEndPointId());
             }
+            segment.setSegmentDirection(normalizeSegmentDirection(segment.getSegmentDirection()));
             segment.setId(UUID.randomUUID().toString());
             segment.setAirwayId(airwayId);
             segment.setOrderNo(order++);
             mapper.insertSegment(segment);
         }
+    }
+
+    private String normalizeSegmentDirection(String value) {
+        if (value == null || value.trim().isEmpty() || "BOTH".equalsIgnoreCase(value)
+                || "TWO_WAY".equalsIgnoreCase(value)) return "BOTH";
+        if ("FORWARD".equalsIgnoreCase(value) || "ONE_WAY".equalsIgnoreCase(value)) return "FORWARD";
+        if ("REVERSE".equalsIgnoreCase(value)) return "REVERSE";
+        throw ApiException.badRequest("航段方向仅允许 BOTH / FORWARD / REVERSE");
     }
 
     private void defaults(AirwayRow row) {
@@ -177,7 +186,9 @@ public class AirwayService {
     /** 跨包只读引用：校验航段引用的导航点仍有效。 */
     @Mapper
     public interface NavPointRefMapper {
-        @Select("SELECT id FROM navigation_point WHERE deleted = FALSE")
+        @Select("SELECT id FROM navigation_point WHERE deleted = FALSE AND status = 'ENABLED' "
+                + "AND UPPER(point_type) IN ('FIX','REPORT','WAYPOINT','AIRPORT','AIRPORT_I',"
+                + "'VOR','NDB','DME','VOR_DME','VORDME','ILS')")
         List<String> selectActiveIds();
     }
 }

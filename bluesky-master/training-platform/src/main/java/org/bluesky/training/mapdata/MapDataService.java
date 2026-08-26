@@ -7,6 +7,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -46,10 +47,10 @@ public class MapDataService {
             cached = MapLayersResponse.unavailable();
             String status = error instanceof ReferenceDataException || error instanceof IllegalStateException
                     ? "VALIDATION_FAILED" : "SOURCE_UNAVAILABLE";
-            if (error.getMessage() != null && error.getMessage().toLowerCase().contains("timeout")) {
-                status = "SOURCE_UNAVAILABLE";
-            }
-            referenceDataState = ReferenceDataState.failed(status, "导航参考数据未就绪");
+            if (error instanceof ResourceAccessException) status = "SOURCE_UNAVAILABLE";
+            String message = "VALIDATION_FAILED".equals(status) && error.getMessage() != null
+                    ? error.getMessage() : "导航参考数据未就绪";
+            referenceDataState = ReferenceDataState.failed(status, message);
         }
     }
 

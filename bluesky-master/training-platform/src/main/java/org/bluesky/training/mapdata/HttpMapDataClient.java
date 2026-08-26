@@ -1,10 +1,13 @@
 package org.bluesky.training.mapdata;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.HttpStatusCodeException;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -20,29 +23,53 @@ public class HttpMapDataClient implements MapDataClient {
 
     private final RestTemplate restTemplate;
     private final String runtimeLayersUrl;
+    private final ObjectMapper objectMapper;
 
     @Autowired
     public HttpMapDataClient(RestTemplateBuilder builder,
             @Value("${bluesky.data-prep.base-url:http://127.0.0.1:8090}") String baseUrl,
             @Value("${bluesky.data-prep.connect-timeout-millis:3000}") long connectTimeoutMillis,
-            @Value("${bluesky.data-prep.read-timeout-millis:3000}") long readTimeoutMillis) {
+            @Value("${bluesky.data-prep.read-timeout-millis:3000}") long readTimeoutMillis,
+            ObjectMapper objectMapper) {
         this.restTemplate = builder
                 .setConnectTimeout(Duration.ofMillis(connectTimeoutMillis))
                 .setReadTimeout(Duration.ofMillis(readTimeoutMillis))
                 .build();
         this.runtimeLayersUrl = trimTrailingSlash(baseUrl) + "/api/map/runtime-layers";
+        this.objectMapper = objectMapper;
     }
 
     HttpMapDataClient(RestTemplate restTemplate, String baseUrl) {
         this.restTemplate = restTemplate;
         this.runtimeLayersUrl = trimTrailingSlash(baseUrl) + "/api/map/runtime-layers";
+        this.objectMapper = new ObjectMapper();
     }
 
     @Override
     public MapLayersResponse fetch() {
-        RemoteSnapshot remote = restTemplate.getForObject(runtimeLayersUrl, RemoteSnapshot.class);
+        RemoteSnapshot remote;
+        try {
+            remote = restTemplate.getForObject(runtimeLayersUrl, RemoteSnapshot.class);
+        } catch (HttpStatusCodeException error) {
+            ReferenceDataException validation = runtimeValidationError(error);
+            if (validation != null) throw validation;
+            throw error;
+        }
         validate(remote);
         return MapLayersResponse.available(remote.getLayers());
+    }
+
+    private ReferenceDataException runtimeValidationError(HttpStatusCodeException error) {
+        try {
+            JsonNode body = objectMapper.readTree(error.getResponseBodyAsString());
+            if ("INVALID_RUNTIME_NAV_DATA".equals(body.path("code").asText())) {
+                return new ReferenceDataException("INVALID_RUNTIME_NAV_DATA",
+                        body.path("message").asText("运行态导航数据非法"));
+            }
+        } catch (Exception ignored) {
+            // Non-contract error bodies remain source availability failures.
+        }
+        return null;
     }
 
     void validate(RemoteSnapshot remote) {
@@ -107,7 +134,7 @@ public class HttpMapDataClient implements MapDataClient {
                     && validPoint(coordinates) && validWaypointMetadata(feature, pointCodes);
         } else if ("AIRWAY".equals(category)) {
             valid = "AIRWAY".equals(featureType) && "LineString".equals(geometryType)
-                    && validLine(coordinates) && validAirwayMetadata(feature, airwayCodes);
+                    && validLine(coordinates) && validAirwayMetadata(feature, airwayCodes, coordinates);
         } else if ("PHYSICAL_SECTOR".equals(category)) {
             valid = "PHYSICAL_SECTOR".equals(featureType) && "Polygon".equals(geometryType)
                     && validPolygon(coordinates);
@@ -132,7 +159,8 @@ public class HttpMapDataClient implements MapDataClient {
         return feature.get("elevationMeters") == null || feature.get("elevationMeters") instanceof Number;
     }
 
-    private boolean validAirwayMetadata(Map<String, Object> feature, Set<String> airwayCodes) {
+    private boolean validAirwayMetadata(Map<String, Object> feature, Set<String> airwayCodes,
+                                        Object coordinates) {
         String code = text(feature.get("code"));
         if (code == null || !airwayCodes.add(code.trim().toUpperCase(java.util.Locale.ROOT))) return false;
         if (!(feature.get("pointIds") instanceof List) || !(feature.get("pointCodes") instanceof List)
@@ -140,8 +168,13 @@ public class HttpMapDataClient implements MapDataClient {
         List<?> ids = (List<?>) feature.get("pointIds");
         List<?> codes = (List<?>) feature.get("pointCodes");
         List<?> directions = (List<?>) feature.get("segmentDirections");
-        return ids.size() >= 2 && ids.size() == codes.size() && directions.size() == ids.size() - 1
-                && text(feature.get("airwayDirection")) != null;
+        if (!(coordinates instanceof List) || ids.size() < 2 || ids.size() != codes.size()
+                || ids.size() != ((List<?>) coordinates).size()
+                || directions.size() != ids.size() - 1
+                || text(feature.get("airwayDirection")) == null) return false;
+        for (Object id : ids) if (text(id) == null) return false;
+        for (Object pointCode : codes) if (text(pointCode) == null) return false;
+        return true;
     }
 
     private boolean validPoint(Object value) {

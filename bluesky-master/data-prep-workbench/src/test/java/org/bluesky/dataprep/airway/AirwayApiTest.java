@@ -8,6 +8,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -22,6 +24,9 @@ class AirwayApiTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private String navPointId(String code) throws Exception {
         MvcResult list = mockMvc.perform(get("/api/nav-point").param("size", "100")).andReturn();
@@ -86,5 +91,32 @@ class AirwayApiTest {
                         .contentType(APPLICATION_JSON)
                         .content("{\"code\":\"T-903\",\"name\":\"坏方向\",\"airwayDirection\":\"REVERSE\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @Transactional
+    void disabledOrUnsupportedSegmentPointAndInvalidSegmentDirectionAreRejected() throws Exception {
+        jdbc.update("INSERT INTO navigation_point "
+                + "(id,code,name,point_type,longitude,latitude,status,source_type,deleted) "
+                + "VALUES ('disabled-segment-point','OFF','停用点','FIX',120,30,'DISABLED','MANUAL',FALSE)");
+        jdbc.update("INSERT INTO navigation_point "
+                + "(id,code,name,point_type,longitude,latitude,status,source_type,deleted) "
+                + "VALUES ('other-segment-point','OTHER1','其他点','OTHER',120,30,'ENABLED','MANUAL',FALSE)");
+        String pud = navPointId("PUD");
+
+        mockMvc.perform(post("/api/airway").contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"T-904\",\"name\":\"停用引用\",\"airwayDirection\":\"ONE_WAY\","
+                                + "\"segments\":[{\"startPointId\":\"disabled-segment-point\",\"endPointId\":\"" + pud + "\"}]}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/airway").contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"T-905\",\"name\":\"类型引用\",\"airwayDirection\":\"ONE_WAY\","
+                                + "\"segments\":[{\"startPointId\":\"other-segment-point\",\"endPointId\":\"" + pud + "\"}]}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/airway").contentType(APPLICATION_JSON)
+                        .content("{\"code\":\"T-906\",\"name\":\"坏航段方向\",\"airwayDirection\":\"ONE_WAY\","
+                                + "\"segments\":[{\"startPointId\":\"" + pud + "\",\"endPointId\":\"" + pud
+                                + "\",\"segmentDirection\":\"SIDEWAYS\"}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("航段方向")));
     }
 }

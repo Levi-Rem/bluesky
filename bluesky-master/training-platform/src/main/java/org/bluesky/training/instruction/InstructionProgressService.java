@@ -9,6 +9,8 @@ import org.bluesky.training.event.EventStreamService;
 import org.bluesky.training.persistence.AircraftRow;
 import org.bluesky.training.persistence.InstructionMapper;
 import org.bluesky.training.persistence.InstructionRow;
+import org.bluesky.training.mapdata.ReferenceDataException;
+import org.bluesky.training.mapdata.ReferenceDataResolver;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -18,15 +20,18 @@ public class InstructionProgressService {
     private final SimulationGateway simulationGateway;
     private final ObjectMapper objectMapper;
     private final EventStreamService eventStreamService;
+    private final ReferenceDataResolver referenceDataResolver;
 
     public InstructionProgressService(InstructionMapper instructionMapper,
                                       SimulationGateway simulationGateway,
                                       ObjectMapper objectMapper,
-                                      EventStreamService eventStreamService) {
+                                      EventStreamService eventStreamService,
+                                      ReferenceDataResolver referenceDataResolver) {
         this.instructionMapper = instructionMapper;
         this.simulationGateway = simulationGateway;
         this.objectMapper = objectMapper;
         this.eventStreamService = eventStreamService;
+        this.referenceDataResolver = referenceDataResolver;
     }
 
     public void evaluate(AircraftRow aircraft, JsonNode actualState) {
@@ -52,8 +57,20 @@ public class InstructionProgressService {
             refreshActiveInstruction(aircraft.getId());
             return;
         }
-        EngineInstructionCommand command = resolveForDispatch(
-                parseCommand(next.getParsedPayload()), actualState);
+        EngineInstructionCommand command;
+        try {
+            command = referenceDataResolver.resolve(resolveForDispatch(
+                    parseCommand(next.getParsedPayload()), actualState));
+        } catch (ReferenceDataException exception) {
+            if ("REFERENCE_DATA_NOT_READY".equals(exception.getCode())) return;
+            instructionMapper.markFailed(next.getId(), exception.getCode(), exception.getMessage());
+            next.setStatus("FAILED");
+            next.setFailureCode(exception.getCode());
+            next.setFailureMessage(exception.getMessage());
+            refreshActiveInstruction(aircraft.getId());
+            eventStreamService.publishAfterCommit("instruction-upserted", new InstructionResponse(next));
+            return;
+        }
         try {
             simulationGateway.executeInstruction(command);
         } catch (AdapterUnavailableException | AdapterRejectedException exception) {

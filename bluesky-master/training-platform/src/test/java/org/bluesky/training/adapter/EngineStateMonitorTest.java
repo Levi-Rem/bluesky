@@ -2,7 +2,6 @@ package org.bluesky.training.adapter;
 
 import org.bluesky.training.event.EventStreamService;
 import org.junit.jupiter.api.Test;
-import org.bluesky.training.mapdata.MapDataService;
 import org.bluesky.training.persistence.BootstrapMapper;
 import org.bluesky.training.persistence.ExerciseGroupRow;
 
@@ -19,7 +18,6 @@ class EngineStateMonitorTest {
         SimulationGateway gateway = mock(SimulationGateway.class);
         EventStreamService events = mock(EventStreamService.class);
         ReferenceDataSynchronizer synchronizer = mock(ReferenceDataSynchronizer.class);
-        MapDataService mapDataService = mock(MapDataService.class);
         BootstrapMapper bootstrapMapper = mock(BootstrapMapper.class);
         ExerciseGroupRow running = new ExerciseGroupRow();
         running.setId("GROUP-DEFAULT");
@@ -33,7 +31,7 @@ class EngineStateMonitorTest {
                 .thenReturn(new EngineHealth(true, "CONNECTED", "OPENAP", "BlueSky 已连接"))
                 .thenReturn(new EngineHealth(false, "DISCONNECTED", "UNKNOWN", "连接超时"));
         EngineStateMonitor monitor = new EngineStateMonitor(
-                gateway, events, synchronizer, mapDataService, bootstrapMapper);
+                gateway, events, synchronizer, bootstrapMapper);
 
         monitor.poll();
         monitor.poll();
@@ -41,9 +39,9 @@ class EngineStateMonitorTest {
 
         verify(events, times(2)).publish(eq("engine-state"), any(EngineHealth.class));
         verify(events, times(3)).publish(eq("heartbeat"), any());
-        verify(synchronizer).onConnectionState(true);
+        verify(synchronizer, times(2)).onConnectionState(true);
         verify(synchronizer).onConnectionState(false);
-        verify(events, times(2)).publish(eq("reference-data-state"), any());
+        verify(events, times(0)).publish(eq("reference-data-state"), any());
         verify(bootstrapMapper).transitionGroupState("GROUP-DEFAULT", "RUNNING", "PAUSED");
     }
 }

@@ -1,7 +1,7 @@
 """Narrow boundary around the embedded BlueSky engine."""
 
 from pathlib import Path
-from math import isfinite
+from math import isfinite, isclose
 from typing import Any, Dict
 
 from bluesky.tools.aero import ft, kts
@@ -403,6 +403,7 @@ class BlueSkyEngine:
         supported_types = {"WAYPOINT", "AIRPORT", "VOR", "NDB", "DME", "VOR_DME", "ILS"}
         candidate = {}
         counts = {}
+        point_ids = set()
         for raw in raw_points:
             if not isinstance(raw, dict):
                 raise ValueError("导航参考点必须是对象")
@@ -411,11 +412,16 @@ class BlueSkyEngine:
             point_type = str(raw.get("type", "")).strip().upper()
             if not point_id or not code:
                 raise ValueError("导航参考点 id/code 不能为空")
+            if point_id in point_ids:
+                raise ValueError("导航参考点 ID 重复: {}".format(point_id))
+            point_ids.add(point_id)
             if code in candidate:
                 raise ValueError("导航参考点代码重复: {}".format(code))
             if point_type not in supported_types:
                 raise ValueError("导航参考点类型不支持: {}".format(point_type))
             try:
+                if isinstance(raw["latitude"], bool) or isinstance(raw["longitude"], bool):
+                    raise ValueError
                 latitude = float(raw["latitude"])
                 longitude = float(raw["longitude"])
             except (KeyError, TypeError, ValueError):
@@ -424,17 +430,22 @@ class BlueSkyEngine:
                     or not -90.0 <= latitude <= 90.0
                     or not -180.0 <= longitude <= 180.0):
                 raise ValueError("导航参考点坐标越界: {}".format(code))
+            elevation = raw.get("elevationMeters")
+            if elevation is not None:
+                if isinstance(elevation, bool) or not isinstance(elevation, (int, float)) \
+                        or not isfinite(float(elevation)):
+                    raise ValueError("导航参考点高程非法: {}".format(code))
             candidate[code] = {
                 "id": point_id,
                 "code": code,
                 "type": point_type,
                 "latitude": latitude,
                 "longitude": longitude,
-                "elevationMeters": raw.get("elevationMeters"),
+                "elevationMeters": elevation,
             }
             counts[point_type] = counts.get(point_type, 0) + 1
         self._reference_points = candidate
-        return {"total": len(candidate), "counts": counts}
+        return {"accepted": True, "totalCount": len(candidate), "counts": counts}
 
     def _search_runtime_points(self, query, limit, airports):
         matches = []
@@ -529,10 +540,15 @@ class BlueSkyEngine:
         if point is None:
             raise ValueError("未知航路点或机场: {}".format(code))
         if isinstance(value, dict):
-            if (str(value.get("id", "")) != point["id"]
-                    or str(value.get("type", "")).upper() != point["type"]
-                    or float(value.get("latitude", 999.0)) != point["latitude"]
-                    or float(value.get("longitude", 999.0)) != point["longitude"]):
+            try:
+                latitude = float(value["latitude"])
+                longitude = float(value["longitude"])
+            except (KeyError, TypeError, ValueError):
+                raise ValueError("导航参考点对象与已同步数据不一致: {}".format(code))
+            if (str(value.get("id", "")).strip() != point["id"]
+                    or str(value.get("type", "")).strip().upper() != point["type"]
+                    or not isclose(latitude, point["latitude"], rel_tol=0.0, abs_tol=1e-9)
+                    or not isclose(longitude, point["longitude"], rel_tol=0.0, abs_tol=1e-9)):
                 raise ValueError("导航参考点对象与已同步数据不一致: {}".format(code))
         return point
 
@@ -555,7 +571,7 @@ class BlueSkyEngine:
         }
 
     def _validate_airport(self, airport, field_name):
-        point = self._reference_points.get(str(airport).upper())
+        point = self._reference_points.get(str(airport).strip().upper())
         if not point or point["type"] != "AIRPORT":
             raise ValueError("未知{}: {}".format(field_name, airport))
 
