@@ -4,10 +4,18 @@ server:
 spring:
   application:
     name: bluesky-training-platform
+  task:
+    scheduling:
+      pool:
+        # Adapter RPC may block for its ACK window; health/deletion deadlines must still run.
+        size: 4
   datasource:
     url: jdbc:mysql://${BS_MYSQL_HOST:127.0.0.1}:${BS_MYSQL_PORT:3306}/${BS_MYSQL_DATABASE:bluesky_training}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
     username: ${BS_MYSQL_USERNAME:bluesky}
     password: ${BS_MYSQL_PASSWORD:bluesky}
+    hikari:
+      # JDBC timestamps use UTC; CURRENT_TIMESTAMP and lease/expiry SQL must use the same zone.
+      connection-init-sql: "SET time_zone = '+00:00'"
   flyway:
     enabled: true
   mvc:
@@ -37,6 +45,12 @@ bluesky:
     enforcement-enabled: true
     sync-max-attempts-per-connection: 3
   adapter:
+    process:
+      enabled: ${BS_ENGINE_PROCESS_ENABLED:true}
+      python: ${BS_ENGINE_PYTHON:python}
+      home: ${BS_ENGINE_HOME:..}
+      workdir: ${BS_ENGINE_WORKDIR:./data/engines}
+    native-state-enabled: ${BS_NATIVE_STATE_ENABLED:true}
     control-endpoint: ${BS_ADAPTER_CONTROL_ENDPOINT:tcp://127.0.0.1:5555}
     state-endpoint: ${BS_ADAPTER_STATE_ENDPOINT:tcp://127.0.0.1:5556}
     request-timeout-millis: ${BS_ADAPTER_TIMEOUT_MS:2000}

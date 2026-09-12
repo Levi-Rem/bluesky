@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "workbench-client-command-evidence/1",
+  "ACID": {
+    "unique-three-char": "BLOCKED",
+    "unique-four-char": "BLOCKED",
+    "ambiguous-keeps-selection": "BLOCKED",
+    "not-found-keeps-selection": "BLOCKED",
+    "two-char-rejected": "BLOCKED"
+  }
+}

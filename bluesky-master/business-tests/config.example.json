@@ -1,0 +1,131 @@
+{
+  "baseUrl": "http://127.0.0.1:8080",
+  "gatewaySecretEnv": "BS_ACCEPTANCE_GATEWAY_SECRET",
+  "seed": 20260819,
+  "httpTimeoutSeconds": 10,
+  "instructionTimeoutSeconds": 120,
+  "pollIntervalSeconds": 0.5,
+  "groupId": "REPLACE_WITH_RUNNING_GROUP_ID",
+  "aircraftId": "REPLACE_WITH_ACTIVE_AIRCRAFT_ID",
+  "aircraftRevision": 1,
+  "operations": {
+    "callerType": "OPERATIONS",
+    "callerId": "acceptance-operations",
+    "fingerprintDigest": "ops-acceptance-digest"
+  },
+  "orchestrator": {
+    "callerType": "EXERCISE_ORCHESTRATOR",
+    "callerId": "acceptance-orchestrator",
+    "fingerprintDigest": "orchestrator-acceptance-digest"
+  },
+  "sourceTerminal": {
+    "callerType": "TERMINAL",
+    "callerId": "REPLACE_WITH_SOURCE_TERMINAL_ID",
+    "terminalId": "REPLACE_WITH_SOURCE_TERMINAL_ID",
+    "fingerprintDigest": "REPLACE_WITH_SOURCE_FINGERPRINT_DIGEST"
+  },
+  "targetTerminal": {
+    "callerType": "TERMINAL",
+    "callerId": "REPLACE_WITH_TARGET_TERMINAL_ID",
+    "terminalId": "REPLACE_WITH_TARGET_TERMINAL_ID",
+    "fingerprintDigest": "REPLACE_WITH_TARGET_FINGERPRINT_DIGEST"
+  },
+  "targetFrequencyMhz": 121.5,
+  "handoverRaceTargets": [125.1, 126.2],
+  "handoverActiveInstructionId": "REPLACE_WITH_ACTIVE_INSTRUCTION_ID",
+  "handoverCancelableInstructionId": "REPLACE_WITH_BLOCKED_OR_WAITING_INSTRUCTION_ID",
+  "at01Commands": [
+    {"type": "TAKEOFF", "text": "TAKEOFF 02L", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "SIDSTAR", "text": "SIDSTAR SID 02L TEST1", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "HDG", "text": "HDG 090", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "ALT", "text": "ALT 10000", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "SPD", "text": "SPD 250", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "DCT", "text": "DCT TEST1", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "RTE", "text": "RTE TEST1 TEST2 ZBAA", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "HOLD", "text": "HOLD TEST2 R 60S", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "SIDSTAR", "text": "SIDSTAR STAR 36L TEST2", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "ILS", "text": "ILS 36L", "expectedFinalStatuses": ["COMPLETED"]}
+  ],
+  "at01ExpectedFlightEvents": ["TAKEOFF", "LANDED"],
+  "at02Commands": [
+    {"type": "ILS", "text": "ILS 36L", "expectedFinalStatuses": ["EXECUTING", "COMPLETED"]},
+    {"type": "MISSED", "text": "MISSED 36L", "expectedFinalStatuses": ["COMPLETED"]}
+  ],
+  "at04Commands": [
+    {"type": "RTE", "text": "RTE TEST1 TEST2 ZBAA", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "RESUME", "text": "RESUME TEST1", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "OFFSET", "text": "OFFSET R 5NM", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "VOR", "text": "VOR TESTVOR 180 IN", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "P_LEVEL", "text": "P_LEVEL TEST2 12000", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "P_TIME", "text": "P_TIME TEST2 1230", "expectedFinalStatuses": ["COMPLETED"]}
+  ],
+  "at04InvalidRouteCommand": "RTE NO_SUCH_POINT ZBAA",
+  "at05Commands": [
+    {"type": "HOLD", "text": "HOLD TEST2 R 60S", "expectedFinalStatuses": ["EXECUTING", "COMPLETED"]},
+    {"type": "ORBIT", "text": "ORBIT L 5NM", "expectedFinalStatuses": ["EXECUTING", "COMPLETED"]}
+  ],
+  "at05PauseProbeCommand": "ORBIT R 5NM",
+  "identAutoClearTimeoutSeconds": 35,
+  "at06RestartEvidence": {
+    "stateRestored": false,
+    "requestIds": []
+  },
+  "at07Targets": [
+    {"targetKind": "RADAR_SYNTHETIC", "callsign": "FKSYN1", "latitudeDeg": 23.4, "longitudeDeg": 113.3, "trueHeadingDeg": 90, "groundSpeedKt": 240, "targetRevision": 0},
+    {"targetKind": "SIMULATED_AIRCRAFT", "callsign": "FKSIM1", "aircraftType": "A320", "latitudeDeg": 23.4, "longitudeDeg": 113.3, "trueHeadingDeg": 90, "groundSpeedKt": 240, "targetRevision": 0}
+  ],
+  "at08Profile": {
+    "operationType": "DECOMP",
+    "name": "acceptance-decomp-profile",
+    "definition": {"variants": {"N": {"affectedChannels": ["VERTICAL"]}, "S": {"affectedChannels": ["VERTICAL", "SPEED"]}, "CLR": {"affectedChannels": ["VERTICAL", "SPEED"]}}}
+  },
+  "at08Commands": [
+    {"type": "ID", "text": "ID", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "DECOMP", "text": "DECOMP N", "expectedFinalStatuses": ["COMPLETED"]},
+    {"type": "DECOMP", "text": "DECOMP CLR", "expectedFinalStatuses": ["COMPLETED"]}
+  ],
+  "at09Script": {
+    "targetTerminalIds": ["REPLACE_WITH_SOURCE_TERMINAL_ID"],
+    "simulationTimeSeconds": 900,
+    "content": "AT-09 自动化确认项目",
+    "acknowledgementRequired": true,
+    "scriptRevision": 0
+  },
+  "at09Message": {
+    "targetTerminalIds": ["REPLACE_WITH_SOURCE_TERMINAL_ID"],
+    "subject": "AT-09",
+    "content": "自动化业务测试消息",
+    "messageRevision": 0
+  },
+  "at10DisplayProfile": {
+    "name": "AT-10 三单位完整方案",
+    "content": {
+      "unitMode": "MIX",
+      "futureRouteVisible": true,
+      "rangeBearingTool": true,
+      "localMapVisible": true,
+      "labelMode": "FULL",
+      "automaticLabelAvoidance": true,
+      "historyPoints": 8,
+      "speedVectorSeconds": 60
+    }
+  },
+  "at10LabelLayout": {"angleDeg": 45, "distancePx": 32, "mode": "FULL", "pinned": true},
+  "recoveryEvidence": {
+    "browserDisconnect": false,
+    "javaRestart": false,
+    "adapterRestart": false,
+    "checksumFailure": false,
+    "recoveringToPaused": false,
+    "upgradeRetention": false
+  },
+  "capacitySummaryPath": "business-tests/artifacts/at12-summary.json",
+  "scenarioConfigs": {
+    "AT-03": {
+      "aircraftId": "REPLACE_WITH_AT03_DEDICATED_ACTIVE_AIRCRAFT_ID"
+    },
+    "AT-06": {
+      "aircraftId": "REPLACE_WITH_AT06_DEDICATED_ACTIVE_AIRCRAFT_ID"
+    }
+  }
+}

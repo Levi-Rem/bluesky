@@ -27,7 +27,9 @@ const displaySettingsTrigger = ref<HTMLButtonElement | null>(null)
 const group = computed(() => store.bootstrap?.exerciseGroup)
 const engine = computed(() => store.bootstrap?.engine)
 const referenceData = computed(() => store.bootstrap?.referenceData)
-const operationalReady = computed(() => Boolean(engine.value?.connected && referenceData.value?.ready))
+const operationalReady = computed(() => Boolean(referenceData.value?.ready &&
+  (engine.value?.connected || (store.bootstrap?.nativeAdapter && group.value?.state === 'READY'))))
+const canToggleRun = computed(() => operationalReady.value && ['READY', 'RUNNING', 'PAUSED'].includes(group.value?.state ?? ''))
 const engineReady = computed(() => Boolean(engine.value?.connected))
 const fallbackSettings = DEFAULT_DISPLAY_SETTINGS
 const colors = computed(() => previewSettings.value ?? store.bootstrap?.uiParameters ?? fallbackSettings)
@@ -60,11 +62,14 @@ async function toggleRun() {
 async function submitCommand(event: KeyboardEvent) {
   if (event.key !== 'Enter' || !store.selectedAircraft || !command.value.trim()) return
   event.preventDefault()
+  const insertion = insertionForEnter(event)
+  if (insertion === 'DISABLED') return
   const text = command.value
   command.value = ''
   commandError.value = ''
   try {
-    const created = await api.instruction(store.selectedAircraft.id, text, insertionForEnter(event))
+    const created = await api.instruction(store.selectedAircraft.id, text, insertion,
+      store.selectedAircraft.revision ?? 1)
     store.upsertInstruction(created)
   } catch (reason) {
     command.value = text
@@ -126,14 +131,14 @@ onMounted(() => {
     '--track-color': colors.trackColor,
     '--selected-color': colors.selectedTrackColor
   }">
-    <SituationMap :aircraft="store.aircraft" :selected-id="store.selectedAircraftId"
+    <SituationMap :aircraft="store.mapAircraft" :selected-id="store.selectedAircraftId"
       :track-color="colors.trackColor" :selected-track-color="colors.selectedTrackColor"
       :runtime-layers="store.mapLayers" :layer-visibility="store.mapLayerVisibility"
       :display-settings="colors"
       @select="store.selectAircraft" />
 
     <header v-if="!topHidden" class="top-bar panel">
-      <button class="run-button" :disabled="busy || !operationalReady"
+      <button class="run-button" :disabled="busy || !canToggleRun"
         :title="operationalReady ? '开始或暂停练习' : (referenceData?.message || engine?.message)" @click="toggleRun">
         {{ group?.state === 'RUNNING' ? 'Ⅱ' : '▶' }}
       </button>

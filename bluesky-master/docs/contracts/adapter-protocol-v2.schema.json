@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bluesky.training/contracts/adapter-protocol-v2.schema.json",
+  "title": "Java—Python Adapter Protocol 2.0 信封",
+  "description": "权威来源：《模拟飞行员工作台第二版详细设计》2.2 第 10 节。REQUEST 的 correlationRequestId 为空；RESPONSE 必须复制对应 REQUEST 的 requestId 与 idempotencyKey。1.x 与 2.0 不兼容。",
+  "x-protocol-version": "2.0",
+  "x-frame-max-bytes": 1048576,
+  "x-heartbeat-interval-seconds": 1,
+  "x-degraded-after-seconds": 3,
+  "x-disconnected-after-seconds": 5,
+  "type": "object",
+  "required": [
+    "protocolVersion",
+    "messageKind",
+    "messageType",
+    "exerciseGroupId",
+    "engineInstanceId",
+    "requestId",
+    "correlationRequestId",
+    "idempotencyKey",
+    "sequence",
+    "systemTimeUtc",
+    "simulationTimeSeconds",
+    "payloadSchemaVersion",
+    "payload"
+  ],
+  "properties": {
+    "protocolVersion": {"const": "2.0"},
+    "messageKind": {
+      "enum": ["REQUEST", "RESPONSE", "EVENT"]
+    },
+    "messageType": {
+      "description": "详细设计 10.2 全量消息类型；唯一来源，Java/Python 不得另行手抄",
+      "enum": [
+        "HELLO",
+        "HELLO_ACK",
+        "HEALTH",
+        "START",
+        "STARTED",
+        "PAUSE",
+        "PAUSED",
+        "RESUME",
+        "RESUMED",
+        "STOP",
+        "STOPPED",
+        "RESET_DEMO_ONLY",
+        "REFERENCE_SNAPSHOT_LOAD",
+        "REFERENCE_SNAPSHOT_ACK",
+        "SPECIAL_PROFILE_LOAD",
+        "SPECIAL_PROFILE_ACK",
+        "AIRCRAFT_APPLY",
+        "AIRCRAFT_APPLIED",
+        "AIRCRAFT_DELETE",
+        "AIRCRAFT_DELETED",
+        "AIRCRAFT_EXISTS_GET",
+        "AIRCRAFT_EXISTS_RESULT",
+        "INSTRUCTION_APPLY",
+        "INSTRUCTION_APPLIED",
+        "INSTRUCTION_REJECTED",
+        "INSTRUCTION_CANCEL",
+        "INSTRUCTION_CANCELLED",
+        "INSTRUCTION_STATUS_GET",
+        "INSTRUCTION_STATUS_RESULT",
+        "RECOVERY_CHECKPOINT_LOAD",
+        "RECOVERY_CHECKPOINT_ACK",
+        "STATE_SNAPSHOT_GET",
+        "STATE_SNAPSHOT_CHUNK",
+        "INSTRUCTION_PHASE_CHANGED",
+        "WAYPOINT_PASSED",
+        "FLIGHT_PHASE_CHANGED",
+        "GUIDANCE_FAILED"
+      ]
+    },
+    "exerciseGroupId": {"type": "string", "minLength": 1},
+    "engineInstanceId": {"type": "string", "minLength": 1},
+    "requestId": {"type": ["string", "null"]},
+    "correlationRequestId": {"type": ["string", "null"]},
+    "idempotencyKey": {"type": ["string", "null"]},
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "按训练组+实例+方向从 1 单调递增；缺口标记 OUT_OF_SYNC"
+    },
+    "systemTimeUtc": {"type": "string", "format": "date-time", "pattern": "Z$", "minLength": 1},
+    "simulationTimeSeconds": {"type": "number", "minimum": 0},
+    "payloadSchemaVersion": {"type": ["string", "null"]},
+    "payload": {
+      "type": "object",
+      "description": "HELLO 可携带 aircraftTypeQuery 字符串，HELLO_ACK 对应返回 aircraftTypes 数组；条目含 code、name、airbornePerformanceAvailable、可空 performanceSourceAircraftType。未携带查询字段的健康握手行为不变。详见详细设计 9.3、10.2。"
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"messageKind": {"const": "REQUEST"}}},
+      "then": {
+        "properties": {
+          "requestId": {"type": "string", "minLength": 1},
+          "correlationRequestId": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"messageKind": {"const": "RESPONSE"}}},
+      "then": {
+        "properties": {
+          "requestId": {"type": "string", "minLength": 1},
+          "correlationRequestId": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  ]
+}

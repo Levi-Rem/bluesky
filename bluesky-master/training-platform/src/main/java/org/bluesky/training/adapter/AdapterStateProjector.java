@@ -6,6 +6,7 @@ import org.bluesky.training.aircraft.AircraftResponse;
 import org.bluesky.training.event.EventStreamService;
 import org.bluesky.training.exercise.ExerciseGroupResponse;
 import org.bluesky.training.instruction.InstructionProgressService;
+import org.bluesky.training.instruction.V2InstructionProgressEvaluator;
 import org.bluesky.training.persistence.AircraftMapper;
 import org.bluesky.training.persistence.AircraftRow;
 import org.bluesky.training.persistence.BootstrapMapper;
@@ -35,17 +36,20 @@ public class AdapterStateProjector {
     private final AtomicReference<String> lastInstanceId = new AtomicReference<>("");
     private final Set<String> retiredInstanceIds = new HashSet<>();
     private final InstructionProgressService instructionProgressService;
+    private final V2InstructionProgressEvaluator v2ProgressEvaluator;
     private final TransactionTemplate transactionTemplate;
 
     public AdapterStateProjector(ObjectMapper objectMapper, AircraftMapper aircraftMapper,
                                  BootstrapMapper bootstrapMapper, EventStreamService eventStreamService,
                                  InstructionProgressService instructionProgressService,
+                                 V2InstructionProgressEvaluator v2ProgressEvaluator,
                                  PlatformTransactionManager transactionManager) {
         this.objectMapper = objectMapper;
         this.aircraftMapper = aircraftMapper;
         this.bootstrapMapper = bootstrapMapper;
         this.eventStreamService = eventStreamService;
         this.instructionProgressService = instructionProgressService;
+        this.v2ProgressEvaluator = v2ProgressEvaluator;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -73,9 +77,13 @@ public class AdapterStateProjector {
         lastSequence.set(sequence);
         if (projection == null) return;
         eventStreamService.publish("exercise-state", projection.exerciseGroup);
+        double simulationTimeSeconds = frame.path("simulationTimeSeconds").asDouble(0.0);
         for (ProjectedAircraft aircraft : projection.aircraft) {
             eventStreamService.publish("aircraft-upserted", aircraft.response);
             instructionProgressService.evaluate(aircraft.existing, aircraft.state);
+            // v2 指令收敛（详细设计 6.3.3/6.3.4）：同一状态帧驱动 EXECUTING→COMPLETED
+            v2ProgressEvaluator.evaluate(aircraft.existing.getId(), aircraft.state,
+                    simulationTimeSeconds);
         }
     }
 

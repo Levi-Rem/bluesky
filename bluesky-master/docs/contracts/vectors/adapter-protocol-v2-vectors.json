@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "adapter-protocol-vectors/1",
+  "generatedFrom": "模拟飞行员工作台第二版详细设计 2.2（第 10.1 节）",
+  "description": "Java 与 Python 共用的 Protocol 2.0 协议向量；两侧校验结论必须一致。",
+  "vectors": [
+    {
+      "name": "hello-request",
+      "expectValid": true,
+      "envelope": {
+        "protocolVersion": "2.0",
+        "messageKind": "REQUEST",
+        "messageType": "HELLO",
+        "exerciseGroupId": "group-1",
+        "engineInstanceId": "engine-1",
+        "requestId": "req-hello-001",
+        "correlationRequestId": null,
+        "idempotencyKey": null,
+        "sequence": 1,
+        "systemTimeUtc": "2026-08-31T09:00:00.000Z",
+        "simulationTimeSeconds": 0.0,
+        "payloadSchemaVersion": "hello/1",
+        "payload": {"protocolVersion": "2.0", "platformBuild": "v2"}
+      }
+    },
+    {
+      "name": "instruction-apply-request",
+      "expectValid": true,
+      "envelope": {
+        "protocolVersion": "2.0",
+        "messageKind": "REQUEST",
+        "messageType": "INSTRUCTION_APPLY",
+        "exerciseGroupId": "group-1",
+        "engineInstanceId": "engine-1",
+        "requestId": "req-uuid-1",
+        "correlationRequestId": null,
+        "idempotencyKey": "instruction-uuid",
+        "sequence": 88,
+        "systemTimeUtc": "2026-08-31T09:00:00.000Z",
+        "simulationTimeSeconds": 3600.0,
+        "payloadSchemaVersion": "instruction.apply/1",
+        "payload": {
+          "instructionId": "instruction-uuid",
+          "aircraftId": "aircraft-uuid",
+          "type": "HDG",
+          "affectedChannels": ["LATERAL"],
+          "parameters": {"magneticHeadingDeg": 90},
+          "replacesGuidanceTargetIds": ["target-uuid"]
+        }
+      }
+    },
+    {
+      "name": "state-snapshot-chunk-event",
+      "expectValid": true,
+      "envelope": {
+        "protocolVersion": "2.0",
+        "messageKind": "EVENT",
+        "messageType": "STATE_SNAPSHOT_CHUNK",
+        "exerciseGroupId": "group-1",
+        "engineInstanceId": "engine-1",
+        "requestId": null,
+        "correlationRequestId": null,
+        "idempotencyKey": null,
+        "sequence": 120,
+        "systemTimeUtc": "2026-08-31T09:00:01.000Z",
+        "simulationTimeSeconds": 3601.0,
+        "payloadSchemaVersion": "state.snapshot.chunk/1",
+        "payload": {"snapshotId": "snap-1", "chunkIndex": 0, "chunkCount": 3, "checksum": "sha256:0"}
+      }
+    },
+    {
+      "name": "instruction-applied-response-broken-correlation",
+      "expectValid": false,
+      "correlatesToRequestId": "req-uuid-1",
+      "envelope": {
+        "protocolVersion": "2.0",
+        "messageKind": "RESPONSE",
+        "messageType": "INSTRUCTION_APPLIED",
+        "exerciseGroupId": "group-1",
+        "engineInstanceId": "engine-1",
+        "requestId": "req-uuid-1",
+        "correlationRequestId": "req-other-999",
+        "idempotencyKey": "instruction-uuid",
+        "sequence": 89,
+        "systemTimeUtc": "2026-08-31T09:00:00.500Z",
+        "simulationTimeSeconds": 3600.0,
+        "payloadSchemaVersion": "instruction.apply/1",
+        "payload": {
+          "accepted": true,
+          "code": "OK",
+          "message": "applied",
+          "appliedEntityRevision": 3,
+          "resultChecksum": "sha256:applied"
+        }
+      }
+    },
+    {
+      "name": "instruction-applied-response",
+      "expectValid": true,
+      "correlatesToRequestId": "req-uuid-1",
+      "envelope": {
+        "protocolVersion": "2.0",
+        "messageKind": "RESPONSE",
+        "messageType": "INSTRUCTION_APPLIED",
+        "exerciseGroupId": "group-1",
+        "engineInstanceId": "engine-1",
+        "requestId": "req-uuid-1",
+        "correlationRequestId": "req-uuid-1",
+        "idempotencyKey": "instruction-uuid",
+        "sequence": 90,
+        "systemTimeUtc": "2026-08-31T09:00:01.500Z",
+        "simulationTimeSeconds": 3600.0,
+        "payloadSchemaVersion": "instruction.apply/1",
+        "payload": {
+          "accepted": true,
+          "code": "OK",
+          "message": "applied",
+          "appliedEntityRevision": 3,
+          "resultChecksum": "sha256:applied"
+        }
+      }
+    },
+    {
+      "name": "stale-protocol-version-rejected",
+      "expectValid": false,
+      "envelope": {
+        "protocolVersion": "1.0",
+        "messageKind": "REQUEST",
+        "messageType": "HELLO",
+        "exerciseGroupId": "group-1",
+        "engineInstanceId": "engine-1",
+        "requestId": "req-hello-002",
+        "correlationRequestId": null,
+        "idempotencyKey": null,
+        "sequence": 2,
+        "systemTimeUtc": "2026-08-31T09:00:02.000Z",
+        "simulationTimeSeconds": 0.0,
+        "payload": {}
+      }
+    }
+  ]
+}

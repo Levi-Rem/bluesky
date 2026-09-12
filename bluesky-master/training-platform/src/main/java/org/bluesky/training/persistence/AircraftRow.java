@@ -1,6 +1,9 @@
 package org.bluesky.training.persistence;
 
 public class AircraftRow {
+    private long revision;
+    private String lifecycle;
+
     private String id;
     private String assignedTerminalId;
     private String callsign;
@@ -56,4 +59,12 @@ public class AircraftRow {
     public void setRouteText(String routeText) { this.routeText = routeText; }
     public String getActiveInstructionText() { return activeInstructionText; }
     public void setActiveInstructionText(String activeInstructionText) { this.activeInstructionText = activeInstructionText; }
+
+    public long getRevision() { return revision; }
+
+    public void setRevision(long revision) { this.revision = revision; }
+
+    public String getLifecycle() { return lifecycle; }
+
+    public void setLifecycle(String lifecycle) { this.lifecycle = lifecycle; }
 }

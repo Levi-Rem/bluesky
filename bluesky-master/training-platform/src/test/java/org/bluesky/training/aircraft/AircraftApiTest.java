@@ -6,12 +6,15 @@ import org.bluesky.training.TrainingPlatformApplication;
 import org.bluesky.training.adapter.SimulationGateway;
 import org.bluesky.training.adapter.AdapterUnavailableException;
 import org.bluesky.training.adapter.AdapterRejectedException;
+import org.bluesky.training.common.CallerContext;
+import org.bluesky.training.common.TrustedCallerFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,6 +43,9 @@ class AircraftApiTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @MockBean
     private SimulationGateway simulationGateway;
@@ -198,46 +204,30 @@ class AircraftApiTest {
     }
 
     @Test
-    void deletesAircraftFromEngineAndKeepsRepeatedDeleteIdempotent() throws Exception {
-        String responseBody = mockMvc.perform(post("/api/v1/exercise-groups/GROUP-DEFAULT/aircraft")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validAircraftBody("1234")))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        JsonNode created = objectMapper.readTree(responseBody);
-        String aircraftId = created.path("id").asText();
-
-        mockMvc.perform(delete("/api/v1/aircraft/{aircraftId}", aircraftId))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(delete("/api/v1/aircraft/{aircraftId}", aircraftId))
-                .andExpect(status().isNoContent());
-
-        verify(simulationGateway, times(1)).deleteAircraft("CCA3582");
-        mockMvc.perform(get("/api/v1/exercise-groups/GROUP-DEFAULT/aircraft"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isEmpty());
-    }
-
-    @Test
-    void publishesAircraftDeletedAfterSuccessfulDelete() throws Exception {
+    void v1DeleteDrivesDeletionSagaInsteadOfBypassingIt() throws Exception {
+        // 预构建工作台删除按钮固定调用 v1 DELETE：委托 v2 Saga（token 服务端签发/消费
+        // → 删除请求），不再 410；非桥模式由 Outbox worker 消费 AIRCRAFT_DELETE
         String responseBody = mockMvc.perform(post("/api/v1/exercise-groups/GROUP-DEFAULT/aircraft")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validAircraftBody("1234")))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         String aircraftId = objectMapper.readTree(responseBody).path("id").asText();
-        MvcResult stream = mockMvc.perform(get("/api/v1/events")
-                        .param("exerciseGroupId", "GROUP-DEFAULT")
-                        .header("Accept", "text/event-stream"))
-                .andExpect(request().asyncStarted())
-                .andReturn();
+        // Saga 仅接受 RUNNING/PAUSED 的训练组
+        jdbc.update("UPDATE exercise_group SET state = 'RUNNING' WHERE id = 'GROUP-DEFAULT'");
 
-        mockMvc.perform(delete("/api/v1/aircraft/{aircraftId}", aircraftId))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/aircraft/{aircraftId}", aircraftId)
+                        .requestAttr(TrustedCallerFilter.CALLER_CONTEXT_ATTRIBUTE,
+                                CallerContext.terminal("PP-DEFAULT", "GROUP-DEFAULT", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("DELETE_REQUESTED"))
+                .andExpect(jsonPath("$.adapterPending").value(true));
 
-        assertThat(stream.getResponse().getContentAsString())
-                .contains("event:aircraft-deleted")
-                .contains(aircraftId);
+        // 测试配置未开 v1 桥：不在请求内同步确认，也不物理删行绕过 Saga（评审 D5）
+        verify(simulationGateway, never()).deleteAircraft(org.mockito.ArgumentMatchers.anyString());
+        mockMvc.perform(get("/api/v1/exercise-groups/GROUP-DEFAULT/aircraft"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
     }
 
     @Test

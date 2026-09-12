@@ -52,3 +52,6 @@ bluesky-master/.env.local
 # session / tooling artifacts
 design/tools/pptr/node_modules/
 .dsh-vision-router/
+
+# Mimosa security scanner workspace metadata
+.mimosa/

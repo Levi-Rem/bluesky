@@ -6,12 +6,19 @@ import org.bluesky.training.adapter.AdapterUnavailableException;
 import org.bluesky.training.persistence.BootstrapMapper;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 启动清空仅限显式声明的演示/测试环境（详细设计 3.3.7：生产不执行启动清空；
+ * 评审 P0-2）。默认不装配；demo/test 配置显式设置
+ * training.startup-reset.enabled=true 时生效。
+ */
 @Component
+@ConditionalOnProperty(name = "training.startup-reset.enabled", havingValue = "true")
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class StartupReset implements ApplicationRunner {
     private final BootstrapMapper bootstrapMapper;

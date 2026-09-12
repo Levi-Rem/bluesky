@@ -2,8 +2,6 @@ package org.bluesky.training.adapter;
 
 import org.bluesky.training.event.EventStreamService;
 import org.bluesky.training.persistence.BootstrapMapper;
-import org.bluesky.training.persistence.ExerciseGroupRow;
-import org.bluesky.training.exercise.ExerciseGroupResponse;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -35,18 +33,12 @@ public class EngineStateMonitor {
         referenceDataSynchronizer.onConnectionState(health.isConnected());
         if (lastConnected == null || lastConnected.booleanValue() != health.isConnected()) {
             lastConnected = health.isConnected();
-            if (!health.isConnected()) pauseExerciseAfterDisconnect();
+            // 断连不再直改组状态（评审 B3）：RUNNING→PAUSED 绕过 5.1 状态机
+            // （无 PAUSING、无 Outbox、无 RECOVERING），组状态迁移只能由
+            // v2 生命周期链路（健康监控→PAUSING→看门狗→RECOVERING）驱动；
+            // 本监控只负责把健康事实发布给事件流。
             eventStreamService.publish("engine-state", health);
         }
         eventStreamService.publish("heartbeat", Instant.now().toString());
-    }
-
-    private void pauseExerciseAfterDisconnect() {
-        ExerciseGroupRow group = bootstrapMapper.findDefaultGroup();
-        if (group != null && "RUNNING".equals(group.getState())
-                && bootstrapMapper.transitionGroupState(group.getId(), "RUNNING", "PAUSED") == 1) {
-            eventStreamService.publish("exercise-state",
-                    new ExerciseGroupResponse(bootstrapMapper.findDefaultGroup()));
-        }
     }
 }

@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "command-catalog/1",
+  "generatedFrom": "模拟飞行员工作台第二版详细设计 2.2（第 6.1、7、7.10 节）",
+  "description": "机器可读命令目录：前端帮助、快捷键标签、文本解析器和 OpenAPI 示例的唯一来源。未在本目录出现的厂商命令不得静默接受。",
+  "commands": [
+    {
+      "type": "ACID",
+      "channel": "NONE",
+      "createsInstruction": false,
+      "kind": "SELECTION",
+      "helpKey": "ACID",
+      "summary": "按呼号后三或四位选机；多匹配列出候选且不改变选择"
+    },
+    {"type": "HDG", "channel": "LATERAL", "createsInstruction": true, "helpKey": "HDG", "summary": "磁航向，误差≤1°稳定2秒完成", "aliases": []},
+    {"type": "LEFT", "channel": "LATERAL", "createsInstruction": true, "helpKey": "LEFT", "summary": "1-2位相对左转，3位绝对磁航向", "aliases": []},
+    {"type": "RIGHT", "channel": "LATERAL", "createsInstruction": true, "helpKey": "RIGHT", "summary": "1-2位相对右转，3位绝对磁航向", "aliases": []},
+    {"type": "ALT", "channel": "VERTICAL", "createsInstruction": true, "helpKey": "ALT", "summary": "MSL 高度或 FL；可选内嵌 VS", "aliases": ["LVL"]},
+    {
+      "type": "VS",
+      "channel": "VERTICAL",
+      "createsInstruction": true,
+      "helpKey": "VS",
+      "summary": "升降率，显式正负或 0",
+      "aliases": ["CR", "DR"],
+      "normalizationRules": [
+        {"alias": "CR", "rule": "CR <值> 规范化为 VS +<值>"},
+        {"alias": "DR", "rule": "DR <值> 规范化为 VS -<值>"}
+      ]
+    },
+    {"type": "SPD", "channel": "SPEED", "createsInstruction": true, "helpKey": "SPD", "summary": "IAS 目标；高空不依据数值自动猜 Mach", "aliases": ["SPEED"]},
+    {"type": "MACH", "channel": "SPEED", "createsInstruction": true, "helpKey": "MACH", "summary": "Mach 目标", "aliases": []},
+    {"type": "DCT", "channel": "LATERAL", "createsInstruction": true, "helpKey": "DCT", "summary": "直飞命名点；航路外点临时直飞并保存退出锚点", "aliases": []},
+    {"type": "RTE", "channel": "LATERAL", "createsInstruction": true, "helpKey": "RTE", "summary": "原子替换全部未飞航路；RER 只是前端候选编辑模式", "aliases": []},
+    {"type": "RESUME", "channel": "LATERAL", "createsInstruction": true, "helpKey": "RESUME", "summary": "从指定未飞点或自动选择航段恢复最新计划航路", "aliases": []},
+    {"type": "ORBIT", "channel": "LATERAL", "createsInstruction": true, "helpKey": "ORBIT", "summary": "当前位置或中心点盘旋；半径省略 5 NM，范围 1-20 NM", "aliases": [], "normalizationRules": [
+      {"alias": "HOLD", "rule": "仅带方向的 HOLD L / HOLD R（厂商原地等待）规范化为省略中心点的 ORBIT L|R"}
+    ]},
+    {"type": "HOLD", "channel": "LATERAL", "createsInstruction": true, "helpKey": "HOLD", "summary": "等待点或已发布等待程序；时长 30-180 秒，距离 2-20 NM", "aliases": []},
+    {
+      "type": "OFFSET",
+      "channel": "LATERAL",
+      "createsInstruction": true,
+      "helpKey": "OFFSET",
+      "summary": "1-10NM 平行偏置；CLR 清除",
+      "aliases": [],
+      "normalizationRules": [
+        {"alias": "OFFSET", "rule": "空参数 OFFSET 规范化为 OFFSET CLR"},
+        {"alias": "R<n>", "rule": "R1-R10 紧凑形式规范化为 OFFSET R <n>NM，裸数等同右偏置"},
+        {"alias": "L<n>", "rule": "L1-L10 紧凑形式规范化为 OFFSET L <n>NM"}
+      ]
+    },
+    {
+      "type": "VOR",
+      "channel": "LATERAL",
+      "createsInstruction": true,
+      "helpKey": "VOR",
+      "summary": "截入/截出 VOR 或 VOR_DME 径向；扩展 DME 弧",
+      "aliases": [],
+      "normalizationRules": [
+        {"alias": "T", "rule": "厂商 T 后缀规范化为 IN"},
+        {"alias": "F", "rule": "厂商 F 后缀规范化为 OUT；普通航路点目标拒绝并提示使用 DCT"}
+      ]
+    },
+    {"type": "SIDSTAR", "channel": "LATERAL", "createsInstruction": true, "helpKey": "SIDSTAR", "summary": "按机场、跑道、方向匹配 SID/STAR 并原子写入未飞航路；与 RTE 共用横向冲突键", "aliases": []},
+    {"type": "P_LEVEL", "channel": "BUSINESS_FIELD", "createsInstruction": true, "helpKey": "P_LEVEL", "summary": "未来航路点高度约束，冲突键 BUSINESS_FIELD:LEG:{legId}:LEVEL", "aliases": []},
+    {"type": "P_TIME", "channel": "BUSINESS_FIELD", "createsInstruction": true, "helpKey": "P_TIME", "summary": "未来航路点目标通过仿真时间；HHMM 不隐式跨日", "aliases": []},
+    {"type": "TAKEOFF", "channel": "SPECIAL", "createsInstruction": true, "helpKey": "TAKEOFF", "summary": "复合指令：锁定横向、垂直、速度子通道，400 ft AGL 释放横向/速度", "aliases": []},
+    {"type": "ILS", "channel": "SPECIAL", "createsInstruction": true, "helpKey": "ILS", "summary": "仪表进近；任一通道被接管即整体终止", "aliases": []},
+    {"type": "MISSED", "channel": "SPECIAL", "createsInstruction": true, "helpKey": "MISSED", "summary": "复飞程序；仅 APPROACH/FINAL/FLARE 阶段允许", "aliases": []},
+    {"type": "SQK", "channel": "BUSINESS_FIELD", "createsInstruction": true, "helpKey": "SQK", "summary": "四位八进制 0001-7777 保留前导零；0000 拒绝；不发送 Adapter", "aliases": ["SSRCODE"]},
+    {"type": "SSRMODE", "channel": "BUSINESS_FIELD", "createsInstruction": true, "helpKey": "SSRMODE", "summary": "A|C 模式；不发送 Adapter", "aliases": []},
+    {"type": "NML", "channel": "BUSINESS_FIELD", "createsInstruction": true, "helpKey": "NML", "summary": "同事务锁定 SQUAWK 与 SSR_MODE 恢复计划值；不发送 Adapter", "aliases": []},
+    {"type": "IDENT", "channel": "BUSINESS_FIELD", "createsInstruction": true, "helpKey": "IDENT", "summary": "应答机 IDENT 平台字段，5-30 秒自动清除；ID 不是 IDENT 的别名", "aliases": []},
+    {"type": "NSPEED", "channel": "SPEED", "createsInstruction": true, "helpKey": "NSPEED", "summary": "恢复 managed speed；Adapter 确认后完成", "aliases": []},
+    {"type": "ID", "channel": "SPECIAL", "createsInstruction": true, "helpKey": "ID", "summary": "特殊地理位置标示能力槽，行为仅由已发布 special_operation_profile(operationType=ID) 定义", "aliases": []},
+    {"type": "DECOMP", "channel": "SPECIAL", "createsInstruction": true, "helpKey": "DECOMP", "summary": "客舱失压能力槽 N/S/CLR，行为仅由已发布 profile 定义", "aliases": []},
+    {
+      "type": "FRE",
+      "channel": "NONE",
+      "createsInstruction": false,
+      "kind": "ROUTE",
+      "routesTo": "HANDOVER",
+      "helpKey": "FRE",
+      "summary": "按频率直接原子移交，不进入飞行控制通道、不创建指令"
+    },
+    {
+      "type": "DEL",
+      "channel": "NONE",
+      "createsInstruction": false,
+      "kind": "ROUTE",
+      "routesTo": "DELETION_PREVIEW",
+      "helpKey": "DEL",
+      "summary": "进入删除预览→确认→DELETE 流程，与删除按钮共用后端，不创建指令"
+    }
+  ]
+}

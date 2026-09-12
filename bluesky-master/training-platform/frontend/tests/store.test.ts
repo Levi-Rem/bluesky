@@ -31,7 +31,7 @@ describe('workstation instruction projection', () => {
   it('upserts the REST result and matching SSE event as one queue item', () => {
     const store = useWorkstationStore()
     const executing: Instruction = {
-      id: 'instruction-1', aircraftId: 'aircraft-a', text: 'HDG 090', type: 'HDG', insertion: 'AFTER_CURRENT',
+      id: 'instruction-1', aircraftId: 'aircraft-a', text: 'HDG 090', type: 'HDG', insertion: 'REPLACE',
       status: 'EXECUTING', sequenceNumber: 1
     }
     store.selectedAircraftId = 'aircraft-a'
@@ -148,7 +148,7 @@ describe('workstation instruction projection', () => {
 
 function instruction(id: string, aircraftId = 'aircraft-a'): Instruction {
   return {
-    id, aircraftId, text: 'HDG 090', type: 'HDG', insertion: 'AFTER_CURRENT',
+    id, aircraftId, text: 'HDG 090', type: 'HDG', insertion: 'REPLACE',
     status: 'EXECUTING', sequenceNumber: 1
   }
 }

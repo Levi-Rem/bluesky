@@ -9,12 +9,13 @@ export async function validateAircraftReferences(
   origin: string,
   destination: string,
   routeText: string,
-  search: Search
+  search: Search,
+  deferAircraftTypeValidation = false
 ): Promise<string> {
   const type = aircraftType.trim().toUpperCase()
   const departure = origin.trim().toUpperCase()
   const arrival = destination.trim().toUpperCase()
-  if (!await exactMatch('aircraft-types', type, search)) return `未知机型: ${type}`
+  if (!deferAircraftTypeValidation && !await exactMatch('aircraft-types', type, search)) return `未知机型: ${type}`
   if (!await exactMatch('airports', departure, search)) return `未知起飞机场: ${departure}`
   if (!await exactMatch('airports', arrival, search)) return `未知落地机场: ${arrival}`
 

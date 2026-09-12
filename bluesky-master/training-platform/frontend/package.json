@@ -7,7 +7,8 @@
     "dev": "vite",
     "typecheck": "vue-tsc --noEmit",
     "build": "vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:business": "vitest run --config vitest.business.config.ts"
   },
   "dependencies": {
     "ol": "^10.3.1",

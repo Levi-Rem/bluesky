@@ -32,6 +32,9 @@ class WorkstationBootstrapApiTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     @MockBean
     private SimulationGateway simulationGateway;
 
@@ -80,10 +83,15 @@ class WorkstationBootstrapApiTest {
                 .andReturn().getResponse().getContentAsString();
         JsonNode aircraft = objectMapper.readTree(created);
 
-        mockMvc.perform(post("/api/v1/aircraft/{aircraftId}/instructions", aircraft.path("id").asText())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text\":\"HDG 090\",\"insertion\":\"AFTER_CURRENT\"}"))
-                .andExpect(status().isCreated());
+        // v1 指令写入口已停用（评审 E7）：快照数据以 v1 行形态直接落库
+        jdbc.update("INSERT INTO aircraft_instruction (id, exercise_aircraft_id, "
+                        + "exercise_group_id, source_terminal_id, instruction_type, "
+                        + "control_channel, conflict_key, scheduling, status, sequence_number, "
+                        + "raw_text, parsed_payload, insertion_mode) VALUES "
+                        + "('bootstrap-ins-1', ?, 'GROUP-DEFAULT', 'PP-DEFAULT', 'HDG', "
+                        + "'LATERAL', 'LATERAL:bootstrap', 'REPLACE', 'EXECUTING', 1, "
+                        + "'HDG 090', '{}', 'REPLACE')",
+                aircraft.path("id").asText());
 
         mockMvc.perform(get("/api/v1/workstation/bootstrap"))
                 .andExpect(status().isOk())

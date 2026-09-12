@@ -1,4 +1,6 @@
-export type InsertionMode = 'AFTER_CURRENT' | 'IMMEDIATE' | 'APPEND'
+// P10（TDD 计划 15.2）：Enter=REPLACE；Shift+Enter=AFTER_COMPLETION；Ctrl+Enter 走可配置档（默认 DISABLED）。
+// 旧 v1 的 APPEND 语义已删除（详细设计 6.2 不提供第三种调度语义）。
+export type InsertionMode = 'REPLACE' | 'AFTER_COMPLETION' | 'DISABLED'
 
 export interface EnterModifiers {
   ctrlKey: boolean
@@ -6,7 +8,7 @@ export interface EnterModifiers {
 }
 
 export function insertionForEnter(modifiers: EnterModifiers): InsertionMode {
-  if (modifiers.ctrlKey) return 'IMMEDIATE'
-  if (modifiers.shiftKey) return 'APPEND'
-  return 'AFTER_CURRENT'
+  if (modifiers.ctrlKey) return 'DISABLED'
+  if (modifiers.shiftKey) return 'AFTER_COMPLETION'
+  return 'REPLACE'
 }

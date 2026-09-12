@@ -19,8 +19,19 @@ export const useWorkstationStore = defineStore('workstation', () => {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let reconnectAttempt = 0
   let instructionRequest = 0
+  let nativeCursor = ''
+  let refreshPending: Promise<void> | null = null
+  let refreshRequested = false
 
   const aircraft = computed(() => bootstrap.value?.aircraft ?? [])
+  const mapAircraft = computed<Aircraft[]>(() => [
+    ...aircraft.value,
+    ...(bootstrap.value?.fakeTargets ?? []).filter(f => f.target_kind === 'RADAR_SYNTHETIC' && ['ACTIVE', 'STOPPED'].includes(f.state)).map(f => ({
+      id: `fake:${f.id}`, callsign: f.callsign, aircraftType: 'FAKE', assignedTerminalId: '', wakeCategory: '', transponderCode: null,
+      origin: '', destination: '', route: [], appearanceOffsetMinutes: 0, latitude: Number(f.latitude_deg), longitude: Number(f.longitude_deg),
+      headingDegrees: Number(f.true_heading_deg), altitudeFeet: Number(f.altitude_ft_msl), speedKnots: Number(f.ground_speed_kt), verticalSpeedFeetPerMinute: 0
+    }))
+  ])
   const selectedAircraft = computed(() =>
     aircraft.value.find(item => item.id === selectedAircraftId.value) ?? null)
 
@@ -29,6 +40,7 @@ export const useWorkstationStore = defineStore('workstation', () => {
     error.value = ''
     try {
       bootstrap.value = await api.bootstrap()
+      if (bootstrap.value.nativeAdapter) nativeCursor = `${bootstrap.value.terminal.id}:${bootstrap.value.streamEpoch}:${bootstrap.value.snapshotSequence}`
       if (!bootstrap.value.aircraft.some(item => item.id === selectedAircraftId.value)) {
         selectedAircraftId.value = bootstrap.value.aircraft[0]?.id ?? null
       }
@@ -75,8 +87,35 @@ export const useWorkstationStore = defineStore('workstation', () => {
       reconnectTimer = null
     }
     events?.close()
-    const source = new EventSource('/api/v1/events?exerciseGroupId=GROUP-DEFAULT')
+    const state = bootstrap.value
+    const source = new EventSource(state?.nativeAdapter
+      ? `/api/v2/events?exerciseGroupId=${encodeURIComponent(state.exerciseGroup.id)}&terminalId=${encodeURIComponent(state.terminal.id)}&cursor=${encodeURIComponent(nativeCursor)}`
+      : '/api/v1/events?exerciseGroupId=GROUP-DEFAULT')
     events = source
+    if (state?.nativeAdapter) {
+      source.addEventListener('aircraft.state.frame', event => {
+        const frame = JSON.parse((event as MessageEvent).data).payload
+        if (!bootstrap.value || !frame) return
+        bootstrap.value.exerciseGroup.simulationTimeSeconds = frame.simulationTimeSeconds
+        if (frame.fakeTargets) bootstrap.value.fakeTargets = frame.fakeTargets
+        for (const dynamic of frame.aircraft ?? []) {
+          const old = bootstrap.value.aircraft.find(a => a.id === dynamic.id)
+          if (old) upsertAircraft({ ...old, ...dynamic })
+        }
+      })
+      const refresh = (event: Event) => {
+        const id = (event as MessageEvent).lastEventId
+        if (id) nativeCursor = id
+        refreshRequested = true
+        if (!refreshPending) refreshPending = (async () => {
+          do {
+            refreshRequested = false
+            await refreshNative()
+          } while (refreshRequested)
+        })().finally(() => { refreshPending = null })
+      }
+      for (const name of ['group.state.changed', 'aircraft.created', 'aircraft.updated', 'aircraft.lifecycle.changed', 'aircraft.deleted', 'instruction.status.changed', 'command.report.created', 'flight.report.created', 'fake-target.changed', 'script.delivered', 'message.received']) source.addEventListener(name, refresh)
+    }
     source.addEventListener('snapshot', event => {
       bootstrap.value = JSON.parse((event as MessageEvent).data) as Bootstrap
       if (!aircraft.value.some(item => item.id === selectedAircraftId.value)) {
@@ -105,12 +144,26 @@ export const useWorkstationStore = defineStore('workstation', () => {
     }
   }
 
+  async function refreshNative() {
+    try {
+      const next = await api.bootstrap()
+      if (events) bootstrap.value = next
+      await loadInstructions()
+    } catch (reason) { error.value = reason instanceof Error ? reason.message : String(reason) }
+  }
+
   function scheduleReconnect() {
     if (reconnectTimer) return
     const delay = Math.min(1000 * (2 ** reconnectAttempt), 30000)
     reconnectAttempt += 1
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
+      if (bootstrap.value?.nativeAdapter) {
+        // A Java restart changes the stream epoch. EventSource hides HTTP 409,
+        // so obtain a consistent snapshot and cursor before reconnecting.
+        void load().then(() => { if (!events) scheduleReconnect() })
+        return
+      }
       try {
         connectEvents()
       } catch (reason) {
@@ -162,6 +215,7 @@ export const useWorkstationStore = defineStore('workstation', () => {
   }
 
   async function selectAircraft(id: string) {
+    if (!aircraft.value.some(a => a.id === id)) return
     selectedAircraftId.value = id
     await loadInstructions()
   }
@@ -177,11 +231,12 @@ export const useWorkstationStore = defineStore('workstation', () => {
 
   async function deleteAircraft(id: string) {
     await api.deleteAircraft(id)
-    removeAircraft(id)
+    if (bootstrap.value?.nativeAdapter) await refreshNative()
+    else removeAircraft(id)
   }
 
   return {
-    bootstrap, aircraft, selectedAircraft, selectedAircraftId, instructions, error, loading,
+    bootstrap, aircraft, mapAircraft, selectedAircraft, selectedAircraftId, instructions, error, loading,
     mapDataAvailable, mapLayers, mapLayerVisibility,
     load, loadMapLayersOnce, setMapLayerVisible, saveDisplaySettings,
     loadInstructions, selectAircraft, deleteAircraft, upsertAircraft, upsertInstruction,

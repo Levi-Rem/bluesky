@@ -117,7 +117,8 @@ async function submit() {
   if (error.value) return
   try {
     error.value = await validateAircraftReferences(
-      form.aircraftType, form.origin, form.destination, form.route, api.reference
+      form.aircraftType, form.origin, form.destination, form.route, api.reference,
+      api.deferAircraftTypeValidation()
     )
     if (error.value) return
     error.value = await validateInitialWaypointReference(form.initialWaypoint, api.reference)

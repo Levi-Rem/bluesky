@@ -1,0 +1,392 @@
+# 模拟飞行员工作台第二版 REST 契约定桩
+# 权威来源：《模拟飞行员工作台第二版详细设计》2.2（第 9、12 节）
+# 本文件是生成物，不得引入详细设计之外的语义；发现缺口先修订详细设计。
+openapi: 3.0.3
+info:
+  title: 模拟飞行员工作台第二版 REST API
+  version: 2.0.0
+  description: >
+    /api/v2 契约骨架（P00 定桩）。枚举与错误码为详细设计 2.2 的固定集合，
+    由 ContractConsistencyValidator 与 scripts/verify_v2_contracts.py 双向校验。
+servers:
+  - url: /api/v2
+paths:
+  /exercise-groups/{groupId}/reference/aircraft-types:
+    get:
+      summary: 查询当前组原生引擎的机型目录（详细设计 9.3）
+      operationId: searchNativeAircraftTypes
+      description: >
+        仅允许已绑定同组的终端。查询忽略首尾空白与大小写，按代码排序，最多 50 项。
+        READY 且尚无引擎时由前端延后预校验，实际创建仍由原生引擎校验。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: {type: string}
+        - name: query
+          in: query
+          required: false
+          schema: {type: string, default: ''}
+      responses:
+        '200':
+          description: 当前实例的原生性能机型目录
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 50
+                items:
+                  type: object
+                  properties:
+                    code: {type: string}
+                    name: {type: string}
+                    airbornePerformanceAvailable: {type: boolean}
+                    performanceSourceAircraftType: {type: string, nullable: true}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422':
+          description: 当前引擎未提供机型目录（FEATURE_NOT_SUPPORTED）
+        '503':
+          description: 当前组原生引擎尚不可用
+  /workstations/{terminalId}/bootstrap:
+    get:
+      summary: 原子终端快照（详细设计 9.2）
+      operationId: bootstrapWorkstation
+      parameters:
+        - name: terminalId
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: 终端投影与 snapshotSequence
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BootstrapResponse'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /exercise-groups/{groupId}/actions/start:
+    post:
+      summary: 开始训练（详细设计 5.1/9.6）
+      operationId: startExerciseGroup
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: {type: string}
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GroupActionRequest'}
+      responses:
+        '202':
+          description: 已受理，返回过渡状态操作信封
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OperationEnvelope'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '428': {$ref: '#/components/responses/RevisionRequired'}
+  /aircraft/{aircraftId}/instructions:
+    post:
+      summary: 提交文本或结构化指令（详细设计 9.4）
+      operationId: submitInstruction
+      parameters:
+        - name: aircraftId
+          in: path
+          required: true
+          schema: {type: string}
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InstructionRequest'}
+      responses:
+        '202':
+          description: 指令已受理
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InstructionResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    get:
+      summary: 指令与队列历史
+      operationId: listInstructions
+      parameters:
+        - name: aircraftId
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: 指令分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/InstructionResponse'}
+  /instructions/{instructionId}:
+    get:
+      summary: 查询单条指令、阻塞原因、子项和引导目标
+      operationId: getInstruction
+      parameters:
+        - name: instructionId
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: 指令详情
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InstructionResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /events:
+    get:
+      summary: 可靠 SSE（详细设计 9.5）
+      operationId: streamEvents
+      parameters:
+        - name: exerciseGroupId
+          in: query
+          required: true
+          schema: {type: string}
+        - name: terminalId
+          in: query
+          required: true
+          schema: {type: string}
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema: {type: string}
+      responses:
+        '200':
+          description: text/event-stream；信封结构见 sse-event-v2.schema.json
+          content:
+            text/event-stream:
+              schema: {type: string}
+        '409': {$ref: '#/components/responses/Conflict'}
+components:
+  responses:
+    BadRequest:
+      description: 非法请求
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Forbidden:
+      description: 权限拒绝
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Conflict:
+      description: 状态或版本冲突
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    RevisionRequired:
+      description: 缺少 revision
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+  schemas:
+    ExerciseGroupState:
+      type: string
+      description: 详细设计 5.1 训练组状态机
+      enum:
+        - READY
+        - STARTING
+        - RUNNING
+        - PAUSING
+        - PAUSED
+        - RESUMING
+        - RECOVERING
+        - RECOVERY_FAILED
+        - ENDING
+        - ENDED
+    AircraftLifecycle:
+      type: string
+      description: 详细设计 5.2 航空器生命周期
+      enum:
+        - PLANNED
+        - CREATE_REQUESTED
+        - CREATE_FAILED
+        - ACTIVE
+        - DELETE_REQUESTED
+        - DELETE_FAILED
+        - DELETED
+    InstructionState:
+      type: string
+      description: 详细设计 5.4 指令状态机；禁止 WAITING/PENDING
+      enum:
+        - RECEIVED
+        - VALIDATED
+        - BLOCKED
+        - DISPATCHING
+        - EXECUTING
+        - COMPLETED
+        - REPLACED
+        - FAILED
+        - TIMED_OUT
+        - CANCELLED
+        - REJECTED
+    InstructionType:
+      type: string
+      description: 会创建指令的命令类型；ACID/FRE/DEL 不在此列（详细设计 6.1、7.10）
+      enum:
+        - HDG
+        - LEFT
+        - RIGHT
+        - ALT
+        - VS
+        - SPD
+        - MACH
+        - DCT
+        - RTE
+        - RESUME
+        - ORBIT
+        - HOLD
+        - OFFSET
+        - VOR
+        - SIDSTAR
+        - P_LEVEL
+        - P_TIME
+        - TAKEOFF
+        - ILS
+        - MISSED
+        - SQK
+        - SSRMODE
+        - NML
+        - IDENT
+        - NSPEED
+        - ID
+        - DECOMP
+    SchedulingMode:
+      type: string
+      description: 详细设计 6.2；不提供第三种调度语义
+      enum:
+        - REPLACE
+        - AFTER_COMPLETION
+    ControlChannel:
+      type: string
+      description: 详细设计 6.1 控制通道
+      enum:
+        - LATERAL
+        - VERTICAL
+        - SPEED
+        - BUSINESS_FIELD
+        - SPECIAL
+    ErrorResponse:
+      type: object
+      description: 详细设计 9.1/12.1 错误信封
+      required: [code, message, fields, warnings, requestId]
+      properties:
+        code:
+          type: string
+          enum:
+            - TERMINAL_NOT_FOUND
+            - TERMINAL_NOT_IN_GROUP
+            - TRUSTED_IDENTITY_REJECTED
+            - TERMINAL_FREQUENCY_IN_USE
+            - AIRCRAFT_NOT_ASSIGNED
+            - AIRCRAFT_ASSIGNMENT_CHANGED
+            - REVISION_REQUIRED
+            - REVISION_CONFLICT
+            - IDEMPOTENCY_KEY_REUSED
+            - TRAINING_STATE_INVALID
+            - CHANNEL_DISPATCH_IN_PROGRESS
+            - INVALID_INSTRUCTION
+            - INITIAL_STATE_INCOMPLETE
+            - DUPLICATE_CALLSIGN
+            - CONFIRMATION_REQUIRED
+            - PERFORMANCE_LIMIT_EXCEEDED
+            - REFERENCE_NOT_FOUND
+            - PROCEDURE_STATE_INVALID
+            - FEATURE_PROFILE_NOT_CONFIGURED
+            - PROFILE_IMMUTABLE
+            - PROFILE_NOT_LOADED
+            - ADAPTER_ACK_TIMEOUT
+            - GUIDANCE_FAILED
+            - EVENT_CURSOR_EXPIRED
+            - ENGINE_RECOVERING
+            - DELETE_RECONCILIATION_REQUIRED
+        message:
+          type: string
+        fields:
+          type: array
+          items: {type: string}
+        warnings:
+          type: array
+          items: {type: string}
+        requestId:
+          type: string
+    GroupActionRequest:
+      type: object
+      required: [groupRevision]
+      properties:
+        groupRevision: {type: integer, format: int64, minimum: 0}
+        reason: {type: string}
+    InstructionRequest:
+      type: object
+      required: [aircraftRevision, scheduling]
+      description: text 与 command 必须二选一（详细设计 9.4）
+      properties:
+        aircraftRevision: {type: integer, format: int64, minimum: 0}
+        scheduling: {$ref: '#/components/schemas/SchedulingMode'}
+        text: {type: string}
+        command: {$ref: '#/components/schemas/StructuredCommand'}
+    StructuredCommand:
+      type: object
+      required: [type]
+      properties:
+        type: {$ref: '#/components/schemas/InstructionType'}
+        parameters:
+          type: object
+          additionalProperties: true
+    InstructionResponse:
+      type: object
+      properties:
+        id: {type: string}
+        aircraftId: {type: string}
+        type: {$ref: '#/components/schemas/InstructionType'}
+        state: {$ref: '#/components/schemas/InstructionState'}
+        revision: {type: integer, format: int64}
+        blockingReasons:
+          type: array
+          description: 详细设计 5.4 四类阻塞原因
+          items:
+            type: string
+            enum: [TRAINING_PAUSED, PREDECESSOR_ACTIVE, ENGINE_RECOVERING, SCHEDULED_TIME_NOT_REACHED]
+    OperationEnvelope:
+      type: object
+      description: 详细设计 9.6 异步资源响应
+      required: [operationId, state, revision]
+      properties:
+        operationId: {type: string}
+        resourceId: {type: string}
+        state: {type: string}
+        revision: {type: integer, format: int64}
+        warnings:
+          type: array
+          items: {type: string}
+    BootstrapResponse:
+      type: object
+      required: [snapshotSequence]
+      properties:
+        groupState: {$ref: '#/components/schemas/ExerciseGroupState'}
+        snapshotSequence: {type: integer, format: int64}
+        aircraftLifecycle: {$ref: '#/components/schemas/AircraftLifecycle'}

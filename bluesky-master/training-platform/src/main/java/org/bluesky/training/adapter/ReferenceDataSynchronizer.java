@@ -18,6 +18,7 @@ public class ReferenceDataSynchronizer {
     private final SimulationGateway simulationGateway;
     private final MapDataService mapDataService;
     private final EventStreamService eventStreamService;
+    private final org.bluesky.training.persistence.BootstrapMapper bootstrapMapper;
     private final int maxAttemptsPerConnection;
     private boolean connected;
     private boolean synchronizedForConnection;
@@ -26,11 +27,13 @@ public class ReferenceDataSynchronizer {
     public ReferenceDataSynchronizer(SimulationGateway simulationGateway,
                                      MapDataService mapDataService,
                                      EventStreamService eventStreamService,
+                                     org.bluesky.training.persistence.BootstrapMapper bootstrapMapper,
                                      @Value("${bluesky.reference-data.sync-max-attempts-per-connection:3}")
                                      int maxAttemptsPerConnection) {
         this.simulationGateway = simulationGateway;
         this.mapDataService = mapDataService;
         this.eventStreamService = eventStreamService;
+        this.bootstrapMapper = bootstrapMapper;
         this.maxAttemptsPerConnection = Math.max(1, maxAttemptsPerConnection);
     }
 
@@ -80,7 +83,11 @@ public class ReferenceDataSynchronizer {
             mapDataService.markReady();
             publishState();
             try {
-                simulationGateway.pause();
+                // 同步后停放引擎等待开训；但训练进行中（组 RUNNING）重连不得
+                // 暂停，否则组状态与引擎运行态错位、仿真静默冻结
+                if (!"RUNNING".equals(groupState())) {
+                    simulationGateway.pause();
+                }
             } catch (RuntimeException pauseError) {
                 log.warn("导航参考数据已同步，但暂停仿真引擎失败 reason={}", pauseError.getMessage());
             }
@@ -93,5 +100,15 @@ public class ReferenceDataSynchronizer {
 
     private void publishState() {
         eventStreamService.publish("reference-data-state", mapDataService.referenceDataState());
+    }
+
+    private String groupState() {
+        try {
+            org.bluesky.training.persistence.ExerciseGroupRow group =
+                    bootstrapMapper.findDefaultGroup();
+            return group == null ? null : group.getState();
+        } catch (RuntimeException error) {
+            return null;
+        }
     }
 }

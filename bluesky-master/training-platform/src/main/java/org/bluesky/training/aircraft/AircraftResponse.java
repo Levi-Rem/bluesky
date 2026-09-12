@@ -25,6 +25,7 @@ public final class AircraftResponse {
     private final double verticalSpeedFeetPerMinute;
     private final List<String> route;
     private final String activeInstruction;
+    private final long revision;
 
     public AircraftResponse(AircraftRow row) {
         this.id = row.getId();
@@ -44,6 +45,7 @@ public final class AircraftResponse {
         this.verticalSpeedFeetPerMinute = row.getVerticalSpeedFeetPerMinute();
         this.route = splitRoute(row.getRouteText());
         this.activeInstruction = row.getActiveInstructionText();
+        this.revision = row.getRevision();
     }
 
     private static List<String> splitRoute(String routeText) {
@@ -68,4 +70,5 @@ public final class AircraftResponse {
     public double getVerticalSpeedFeetPerMinute() { return verticalSpeedFeetPerMinute; }
     public List<String> getRoute() { return route; }
     public String getActiveInstruction() { return activeInstruction; }
+    public long getRevision() { return revision; }
 }

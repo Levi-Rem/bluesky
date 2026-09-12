@@ -10,7 +10,8 @@ export interface EngineState {
 export interface ExerciseGroup {
   id: string
   name: string
-  state: 'READY' | 'RUNNING' | 'PAUSED'
+  state: 'READY' | 'STARTING' | 'RUNNING' | 'PAUSING' | 'PAUSED' | 'RESUMING' | 'RECOVERING' | 'RECOVERY_FAILED' | 'ENDING' | 'ENDED'
+  revision?: number
   simulationTimeSeconds: number
 }
 
@@ -32,6 +33,19 @@ export interface Aircraft {
   verticalSpeedFeetPerMinute: number
   route: string[]
   activeInstruction?: string | null
+  revision?: number
+}
+
+export interface FakeTarget {
+  id: string
+  callsign: string
+  state: string
+  target_kind: string
+  latitude_deg: number
+  longitude_deg: number
+  true_heading_deg: number
+  ground_speed_kt: number
+  altitude_ft_msl: number
 }
 
 export interface Instruction {
@@ -40,7 +54,8 @@ export interface Instruction {
   text: string
   type: string
   insertion: InsertionMode
-  status: 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+  status: 'PENDING' | 'RECEIVED' | 'VALIDATED' | 'BLOCKED' | 'DISPATCHING' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT' | 'REPLACED'
+  revision?: number
   sequenceNumber: number
   failureCode?: string | null
   failureMessage?: string | null
@@ -103,6 +118,10 @@ export interface DisplaySettings {
 export type MapLayerVisibility = Record<MapLayerCategory, boolean>
 
 export interface Bootstrap {
+  fakeTargets?: FakeTarget[]
+  nativeAdapter?: boolean
+  streamEpoch?: string
+  snapshotSequence?: number
   terminal: { id: string; name: string }
   exerciseGroup: ExerciseGroup
   engine: EngineState

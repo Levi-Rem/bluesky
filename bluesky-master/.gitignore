@@ -104,3 +104,9 @@ ssd.obj
 *.key
 credentials*
 *.p12
+
+# 本地业务验收配置与运行证据
+/business-tests/config.local.json
+/business-tests/instruction-config.local.json
+/business-tests/artifacts/
+/loadtest/artifacts/

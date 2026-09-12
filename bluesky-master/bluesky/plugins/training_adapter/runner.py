@@ -64,7 +64,10 @@ def run(args: argparse.Namespace) -> int:
     next_state_publish = time.monotonic()
     try:
         while not stopped.is_set():
-            events = dict(poller.poll(10))
+            # poll(0) 非阻塞：Windows 上 libzmq 的 poll(>0) 实测占用约
+            # 15.6ms 粗粒度定时器，会把加速驱动的 update() 频率压到 ~63Hz；
+            # 节流完全交给 bs.sim.update() 内部的高精度 sleep
+            events = dict(poller.poll(0))
             if control in events:
                 try:
                     request = json.loads(control.recv().decode("utf-8"))
@@ -83,10 +86,15 @@ def run(args: argparse.Namespace) -> int:
                         "utf-8"
                     )
                 )
-            try:
-                engine.update()
-            except Exception:
-                LOGGER.exception("BlueSky engine update failed; adapter loop will continue")
+            if engine.is_initialized():
+                try:
+                    engine.update()
+                except Exception:
+                    LOGGER.exception(
+                        "BlueSky engine update failed; adapter loop will continue"
+                    )
+            else:
+                time.sleep(0.01)
             now = time.monotonic()
             if now >= next_state_publish:
                 sequence += 1

@@ -4,16 +4,28 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
+    hikari:
+      connection-init-sql: ""
   flyway:
     enabled: true
     locations: classpath:db/migration,classpath:db/performance-seed
 
+training:
+  startup-reset:
+    # 集成测试依赖启动清空共享 H2；生产配置不设置该属性（评审 P0-2）
+    enabled: true
+
 bluesky:
+  outbox:
+    workers-enabled: false
   reference-data:
     enforcement-enabled: false
   data-prep:
     startup-load-enabled: false
   adapter:
+    process:
+      enabled: false
+    native-state-enabled: false
     state-subscription-enabled: false
     health-poll-millis: 3600000
 

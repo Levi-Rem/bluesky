@@ -1,6 +1,8 @@
 package org.bluesky.training.adapter;
 
 import org.bluesky.training.mapdata.MapDataClient;
+import org.bluesky.training.persistence.BootstrapMapper;
+import org.bluesky.training.persistence.ExerciseGroupRow;
 import org.bluesky.training.mapdata.MapDataService;
 import org.bluesky.training.mapdata.MapLayersResponse;
 import org.bluesky.training.event.EventStreamService;
@@ -23,6 +25,15 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 
 class ReferenceDataSynchronizerTest {
+    private static BootstrapMapper readyGroupMapper() {
+        BootstrapMapper mapper = mock(BootstrapMapper.class);
+        ExerciseGroupRow group = new ExerciseGroupRow();
+        group.setState("READY");
+        org.mockito.Mockito.when(mapper.findDefaultGroup()).thenReturn(group);
+        return mapper;
+    }
+
+
     @Test
     void syncsOnEachConnectionGenerationWithoutRefetchingSource() {
         MapDataClient client = mock(MapDataClient.class);
@@ -33,8 +44,7 @@ class ReferenceDataSynchronizerTest {
         when(gateway.syncReferenceData(anyList()))
                 .thenReturn(new ReferenceDataSyncResult(1, Collections.singletonMap("VOR", 1)));
         EventStreamService events = mock(EventStreamService.class);
-        ReferenceDataSynchronizer synchronizer = new ReferenceDataSynchronizer(
-                gateway, mapDataService, events, 3);
+        ReferenceDataSynchronizer synchronizer = new ReferenceDataSynchronizer(gateway, mapDataService, events, readyGroupMapper(), 3);
 
         synchronizer.onConnectionState(true);
         synchronizer.onConnectionState(true);
@@ -58,7 +68,7 @@ class ReferenceDataSynchronizerTest {
                 .thenReturn(new ReferenceDataSyncResult(0, Collections.emptyMap()));
 
         new ReferenceDataSynchronizer(gateway, mapDataService,
-                mock(EventStreamService.class), 3).onConnectionState(true);
+                mock(EventStreamService.class), readyGroupMapper(), 3).onConnectionState(true);
 
         assertThat(mapDataService.referenceDataState().isReady()).isFalse();
         assertThat(mapDataService.referenceDataState().getStatus()).isEqualTo("SYNC_FAILED");
@@ -74,8 +84,7 @@ class ReferenceDataSynchronizerTest {
         when(gateway.syncReferenceData(anyList()))
                 .thenThrow(new AdapterUnavailableException("timeout"))
                 .thenReturn(new ReferenceDataSyncResult(1, Collections.singletonMap("VOR", 1)));
-        ReferenceDataSynchronizer synchronizer = new ReferenceDataSynchronizer(
-                gateway, mapDataService, mock(EventStreamService.class), 3);
+        ReferenceDataSynchronizer synchronizer = new ReferenceDataSynchronizer(gateway, mapDataService, mock(EventStreamService.class), readyGroupMapper(), 3);
 
         synchronizer.onConnectionState(true);
         assertThat(mapDataService.referenceDataState().getStatus()).isEqualTo("SYNC_FAILED");
@@ -95,7 +104,7 @@ class ReferenceDataSynchronizerTest {
         SimulationGateway gateway = mock(SimulationGateway.class);
 
         new ReferenceDataSynchronizer(gateway, mapDataService,
-                mock(EventStreamService.class), 3).onConnectionState(true);
+                mock(EventStreamService.class), readyGroupMapper(), 3).onConnectionState(true);
 
         assertThat(mapDataService.referenceDataState().getStatus()).isEqualTo("VALIDATION_FAILED");
         verify(gateway, times(0)).syncReferenceData(anyList());
@@ -113,9 +122,31 @@ class ReferenceDataSynchronizerTest {
         doThrow(new AdapterUnavailableException("pause timeout")).when(gateway).pause();
 
         new ReferenceDataSynchronizer(gateway, mapDataService,
-                mock(EventStreamService.class), 3).onConnectionState(true);
+                mock(EventStreamService.class), readyGroupMapper(), 3).onConnectionState(true);
 
         assertThat(mapDataService.referenceDataState().isReady()).isTrue();
+    }
+
+    @Test
+    void doesNotPauseEngineWhenTrainingAlreadyRunning() {
+        // 训练中重连：同步成功后不得暂停，否则组 RUNNING 与引擎暂停态错位、仿真冻结
+        MapDataClient client = mock(MapDataClient.class);
+        when(client.fetch()).thenReturn(snapshot());
+        MapDataService mapDataService = new MapDataService(client);
+        mapDataService.initializeOnce();
+        SimulationGateway gateway = mock(SimulationGateway.class);
+        when(gateway.syncReferenceData(anyList()))
+                .thenReturn(new ReferenceDataSyncResult(1, Collections.singletonMap("VOR", 1)));
+        BootstrapMapper mapper = mock(BootstrapMapper.class);
+        ExerciseGroupRow running = new ExerciseGroupRow();
+        running.setState("RUNNING");
+        when(mapper.findDefaultGroup()).thenReturn(running);
+
+        new ReferenceDataSynchronizer(gateway, mapDataService,
+                mock(EventStreamService.class), mapper, 3).onConnectionState(true);
+
+        assertThat(mapDataService.referenceDataState().isReady()).isTrue();
+        verify(gateway, times(0)).pause();
     }
 
     private static MapLayersResponse snapshot() {

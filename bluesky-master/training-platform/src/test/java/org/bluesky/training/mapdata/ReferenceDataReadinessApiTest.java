@@ -46,6 +46,9 @@ class ReferenceDataReadinessApiTest {
                 + "heading_degrees,altitude_feet,speed_knots,route_text) VALUES "
                 + "('readiness-aircraft','GROUP-DEFAULT','PP-DEFAULT','CCA1','A320','M','1234',"
                 + "'ZSSS','ZBAA',0,31.2,121.3,90,9000,250,'ZBAA')");
+        jdbc.update("INSERT INTO flight_plan (id, aircraft_id, plan_version, origin, destination, "
+                + "route_text) VALUES ('readiness-plan', 'readiness-aircraft', 1, 'ZSSS', "
+                + "'ZBAA', 'ZBAA')");
     }
 
     @Test
@@ -65,18 +68,12 @@ class ReferenceDataReadinessApiTest {
                 .andExpect(jsonPath("$.code").value("REFERENCE_DATA_NOT_READY"));
         verify(simulationGateway, never()).createAircraft(any());
 
+        // v1 指令写入口已停用（评审 E7）：410 先于就绪检查返回；
+        // 指令侧的参考数据门禁随 P03 RuntimeReferenceCatalog（F6）在 v2 路径接入
         mockMvc.perform(post("/api/v1/aircraft/readiness-aircraft/instructions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"DCT PUD\",\"insertion\":\"IMMEDIATE\"}"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("REFERENCE_DATA_NOT_READY"));
+                .andExpect(status().isGone());
         verify(simulationGateway, never()).executeInstruction(any());
-
-        mockMvc.perform(post("/api/v1/aircraft/readiness-aircraft/instructions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text\":\"HDG 090\",\"insertion\":\"IMMEDIATE\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("EXECUTING"));
-        verify(simulationGateway).executeInstruction(any());
     }
 }

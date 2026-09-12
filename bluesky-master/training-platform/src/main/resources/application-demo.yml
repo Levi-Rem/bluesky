@@ -4,7 +4,27 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
+    hikari:
+      connection-init-sql: ""
+
+training:
+  startup-reset:
+    # 演示环境显式声明启动清空；生产配置不设置该属性（详细设计 3.3.7）
+    enabled: true
 
 bluesky:
   adapter:
+    process:
+      enabled: false
+    native-state-enabled: false
     state-subscription-enabled: true
+    # 迁移期桥：DISPATCHING 指令经 v1 网关下发（Protocol 2.0 接线后移除）
+    v1-bridge-enabled: true
+  outbox:
+    # 迁移期：2.0 通道无引擎实例注册，关停避免退避重试噪音
+    workers-enabled: false
+  trusted-gateway:
+    # 仅 demo：无反向代理网关时给 v2 接口注入默认终端身份（生产配置不设置该属性）
+    dev-terminal-id: PP-DEFAULT
+    # 仅 demo：本机业务验收用网关密钥（生产由部署环境注入，不入库）
+    secret: local-acceptance-secret

@@ -19,6 +19,7 @@ public final class EngineInstructionCommand {
     private final List<String> route;
     private final RuntimeNavigationPoint waypointPoint;
     private final List<RuntimeNavigationPoint> routePoints;
+    private final String parametersJson;
 
     public EngineInstructionCommand() {
         this(null, null, null, null, null, null, null, null, null,
@@ -38,6 +39,17 @@ public final class EngineInstructionCommand {
                                      Double mach, String waypoint, List<String> route,
                                      RuntimeNavigationPoint waypointPoint,
                                      List<RuntimeNavigationPoint> routePoints) {
+        this(callsign, commandId, type, headingDegrees, altitudeFeet, verticalSpeedFeetPerMinute,
+                speedKnots, mach, waypoint, route, waypointPoint, routePoints, null);
+    }
+
+    private EngineInstructionCommand(String callsign, String commandId, String type,
+                                     Double headingDegrees, Double altitudeFeet,
+                                     Double verticalSpeedFeetPerMinute, Double speedKnots,
+                                     Double mach, String waypoint, List<String> route,
+                                     RuntimeNavigationPoint waypointPoint,
+                                     List<RuntimeNavigationPoint> routePoints,
+                                     String parametersJson) {
         this.callsign = callsign;
         this.commandId = commandId;
         this.type = type;
@@ -51,6 +63,7 @@ public final class EngineInstructionCommand {
         this.waypointPoint = waypointPoint;
         this.routePoints = routePoints == null ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(routePoints));
+        this.parametersJson = parametersJson;
     }
 
     public String getCallsign() { return callsign; }
@@ -65,6 +78,14 @@ public final class EngineInstructionCommand {
     public List<String> getRoute() { return route; }
     public RuntimeNavigationPoint getWaypointPoint() { return waypointPoint; }
     public List<RuntimeNavigationPoint> getRoutePoints() { return routePoints; }
+    public String getParametersJson() { return parametersJson; }
+
+    /** 迁移桥透传完整 v2 解析参数（复杂引导类型按参数字典执行）。 */
+    public EngineInstructionCommand withParametersJson(String value) {
+        return new EngineInstructionCommand(callsign, commandId, type, headingDegrees,
+                altitudeFeet, verticalSpeedFeetPerMinute, speedKnots, mach, waypoint, route,
+                waypointPoint, routePoints, value);
+    }
 
     public EngineInstructionCommand withCommandId(String value) {
         return new EngineInstructionCommand(callsign, value, type, headingDegrees,

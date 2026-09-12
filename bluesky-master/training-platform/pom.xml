@@ -18,6 +18,7 @@
     <description>First runnable pseudo-pilot and BlueSky integration slice</description>
 
     <properties>
+        <training.artifactName>training-platform</training.artifactName>
         <java.version>8</java.version>
         <mybatis.version>2.3.2</mybatis.version>
         <jeromq.version>0.5.3</jeromq.version>
@@ -73,7 +74,23 @@
     </dependencies>
 
     <build>
-        <finalName>training-platform</finalName>
+        <finalName>${training.artifactName}</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>../docs/contracts</directory>
+                <targetPath>contracts</targetPath>
+                <includes>
+                    <include>adapter-protocol-v2.schema.json</include>
+                    <include>command-catalog-v2.json</include>
+                    <include>openapi-v2.yaml</include>
+                    <include>sse-event-v2.schema.json</include>
+                    <include>vectors/**</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

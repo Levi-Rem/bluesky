@@ -108,7 +108,13 @@ public class InstructionProgressService {
 
     private boolean isComplete(InstructionRow row, JsonNode actual) {
         EngineInstructionCommand command = parseCommand(row.getParsedPayload());
-        switch (command.getType()) {
+        // v1/v2 共表（V11 起）：v2 解析载荷无 type 字段，不属于 v1 完成判据，
+        // 交由 V2InstructionProgressEvaluator 处理（不得 NPE 吞掉状态帧）
+        String type = command.getType();
+        if (type == null) {
+            return false;
+        }
+        switch (type) {
             case "HDG":
                 double difference = Math.abs(actual.path("headingDegrees").asDouble()
                         - command.getHeadingDegrees());

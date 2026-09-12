@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { insertionForEnter } from '../src/commandKeys'
 
 describe('command input keyboard contract', () => {
-  it('maps plain Enter to after-current insertion', () => {
-    expect(insertionForEnter({ ctrlKey: false, shiftKey: false })).toBe('AFTER_CURRENT')
+  it('Enter=REPLACE', () => {
+    expect(insertionForEnter({ ctrlKey: false, shiftKey: false })).toBe('REPLACE')
   })
 
-  it('maps Ctrl+Enter to immediate execution', () => {
-    expect(insertionForEnter({ ctrlKey: true, shiftKey: false })).toBe('IMMEDIATE')
+  it('Ctrl+Enter 默认 DISABLED（可配置档）', () => {
+    expect(insertionForEnter({ ctrlKey: true, shiftKey: false })).toBe('DISABLED')
   })
 
-  it('maps Shift+Enter to append', () => {
-    expect(insertionForEnter({ ctrlKey: false, shiftKey: true })).toBe('APPEND')
+  it('Shift+Enter=AFTER_COMPLETION', () => {
+    expect(insertionForEnter({ ctrlKey: false, shiftKey: true })).toBe('AFTER_COMPLETION')
   })
 })

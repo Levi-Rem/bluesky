@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bluesky.training/contracts/sse-event-v2.schema.json",
+  "title": "第二版 SSE 可靠事件信封",
+  "description": "权威来源：《模拟飞行员工作台第二版详细设计》2.2 第 9.5 节。eventId 固定为 terminalId:streamEpoch:deliverySequence；客户端按 eventId 幂等应用，不得用时间戳排序。",
+  "type": "object",
+  "required": [
+    "eventId",
+    "streamEpoch",
+    "deliverySequence",
+    "groupSequence",
+    "eventType",
+    "exerciseGroupId",
+    "terminalId",
+    "systemTimeUtc",
+    "simulationTimeSeconds",
+    "payload"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "pattern": "^[^:]+:[^:]+:[0-9]+$",
+      "description": "terminalId:streamEpoch:deliverySequence"
+    },
+    "streamEpoch": {
+      "type": "string",
+      "minLength": 1,
+      "description": "服务端重启不得改变；仅显式投影重建才更换"
+    },
+    "deliverySequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "终端内连续序列，Last-Event-ID 续传游标"
+    },
+    "groupSequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "训练组内由 MySQL 单调分配"
+    },
+    "eventType": {
+      "type": "string",
+      "minLength": 1,
+      "examples": [
+        "instruction.updated",
+        "aircraft.handover.completed",
+        "aircraft.state.frame"
+      ],
+      "description": "可靠业务事件与可覆盖动态帧共用本信封；aircraft.state.frame 使用独立 stateFrameSequence，不承诺逐帧续传"
+    },
+    "exerciseGroupId": {"type": "string", "minLength": 1},
+    "terminalId": {"type": "string", "minLength": 1},
+    "entityId": {"type": ["string", "null"]},
+    "systemTimeUtc": {"type": "string", "minLength": 1},
+    "simulationTimeSeconds": {"type": "number", "minimum": 0},
+    "payload": {"type": "object"},
+    "stateFrameSequence": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "仅 aircraft.state.frame 帧携带"
+    }
+  }
+}

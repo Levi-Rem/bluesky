@@ -4,6 +4,7 @@ import org.bluesky.training.adapter.SimulationGateway;
 import org.bluesky.training.configuration.FieldValidationException;
 import org.bluesky.training.persistence.AircraftMapper;
 import org.bluesky.training.persistence.AircraftRow;
+import org.bluesky.training.persistence.AircraftV2Mapper;
 import org.bluesky.training.mapdata.ReferenceDataResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,12 +20,18 @@ public class AircraftService {
     private final AircraftMapper aircraftMapper;
     private final SimulationGateway simulationGateway;
     private final ReferenceDataResolver referenceDataResolver;
+    private final AircraftV2Mapper aircraftV2Mapper;
+    private final FlightPlanService flightPlanService;
 
     public AircraftService(AircraftMapper aircraftMapper, SimulationGateway simulationGateway,
-                           ReferenceDataResolver referenceDataResolver) {
+                           ReferenceDataResolver referenceDataResolver,
+                           AircraftV2Mapper aircraftV2Mapper,
+                           FlightPlanService flightPlanService) {
         this.aircraftMapper = aircraftMapper;
         this.simulationGateway = simulationGateway;
         this.referenceDataResolver = referenceDataResolver;
+        this.aircraftV2Mapper = aircraftV2Mapper;
+        this.flightPlanService = flightPlanService;
     }
 
     @Transactional
@@ -53,7 +60,15 @@ public class AircraftService {
         row.setAltitudeFeet(command.getAltitudeFeet());
         row.setSpeedKnots(command.getSpeedKnots());
         row.setRouteText(String.join(" ", command.getRoute()));
+        // v1 同步建机成功即视为已出现（v2 语义详见设计 5.2）
+        row.setLifecycle("ACTIVE");
         aircraftMapper.insert(row);
+        // v1/v2 共存：v1 建机同样写 v2 当前责任分配（详细设计 5.0 每机恰一条当前分配）
+        aircraftV2Mapper.insertAssignment(UUID.randomUUID().toString(), row.getId(),
+                "PP-DEFAULT");
+        // v1/v2 共存：v1 建机同样落版本化飞行计划（P_LEVEL/P_TIME 航段冲突键依赖 leg 行）
+        flightPlanService.createVersion(row.getId(), row.getOrigin(), row.getDestination(),
+                row.getTransponderCode(), null, null, null, command.getRoute());
         return new AircraftResponse(row);
     }
 

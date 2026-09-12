@@ -1,0 +1,117 @@
+{
+  "baseUrl": "http://127.0.0.1:8080",
+  "gatewaySecretEnv": "BS_ACCEPTANCE_GATEWAY_SECRET",
+  "seed": 20260819,
+  "httpTimeoutSeconds": 10,
+  "instructionTimeoutSeconds": 180,
+  "pollIntervalSeconds": 0.5,
+  "groupId": "REPLACE_WITH_RUNNING_GROUP_ID",
+  "aircraftId": "REPLACE_WITH_DEFAULT_ACTIVE_AIRCRAFT_ID",
+  "operations": {
+    "callerType": "OPERATIONS",
+    "callerId": "instruction-acceptance-operations",
+    "fingerprintDigest": "ops-instruction-acceptance-digest"
+  },
+  "sourceTerminal": {
+    "callerType": "TERMINAL",
+    "callerId": "REPLACE_WITH_SOURCE_TERMINAL_ID",
+    "terminalId": "REPLACE_WITH_SOURCE_TERMINAL_ID",
+    "fingerprintDigest": "REPLACE_WITH_SOURCE_FINGERPRINT_DIGEST"
+  },
+  "targetTerminal": {
+    "callerType": "TERMINAL",
+    "callerId": "REPLACE_WITH_TARGET_TERMINAL_ID",
+    "terminalId": "REPLACE_WITH_TARGET_TERMINAL_ID",
+    "fingerprintDigest": "REPLACE_WITH_TARGET_FINGERPRINT_DIGEST"
+  },
+  "foreignTerminal": {
+    "callerType": "TERMINAL",
+    "callerId": "REPLACE_WITH_NON_OWNER_TERMINAL_ID",
+    "terminalId": "REPLACE_WITH_NON_OWNER_TERMINAL_ID",
+    "fingerprintDigest": "REPLACE_WITH_NON_OWNER_FINGERPRINT_DIGEST"
+  },
+  "clientAutomationEvidencePath": "business-tests/client-command-evidence.example.json",
+  "tokens": {
+    "acidUnique3": "582",
+    "acidUnique4": "3582",
+    "acidAmbiguous3": "123",
+    "destination": "ZBAA",
+    "routePoint": "LMN",
+    "offRoutePoint": "P47",
+    "unknownPoint": "ZZZZ",
+    "flownPoint": "ZGGG",
+    "routeText": "LMN P47 ZBAA",
+    "holdFix": "LMN",
+    "holdProcedure": "HOLD01",
+    "vor": "VLM",
+    "vorDme": "VLM",
+    "ordinaryPoint": "P47",
+    "procedure": "TEST1A",
+    "unknownProcedure": "ZZPROC",
+    "reportPoint": "P47",
+    "futureLeg": "P47",
+    "futureAbsoluteTime": "D0T23:30:00",
+    "futureHhmm": "2330",
+    "pastHhmm": "0001",
+    "departureRunway": "02L",
+    "arrivalRunway": "36R",
+    "unknownRunway": "00X",
+    "missedProcedure": "MISSED1",
+    "targetFrequency": 121.5,
+    "unknownFrequency": 999.999,
+    "preDepartureAircraft": "REPLACE_WITH_PRE_DEPARTURE_AIRCRAFT_ID",
+    "airborneAircraft": "REPLACE_WITH_AIRBORNE_AIRCRAFT_ID",
+    "approachAircraft": "REPLACE_WITH_APPROACH_AIRCRAFT_ID",
+    "outsideIlsEnvelopeAircraft": "REPLACE_WITH_OUTSIDE_ILS_ENVELOPE_AIRCRAFT_ID",
+    "invalidPlannedTransponderAircraft": "REPLACE_WITH_INVALID_PLANNED_TRANSPONDER_AIRCRAFT_ID",
+    "speedProtectionAircraft": "REPLACE_WITH_SPEED_PROTECTION_AIRCRAFT_ID",
+    "profileAbsentAircraft": "REPLACE_WITH_PROFILE_ABSENT_AIRCRAFT_ID",
+    "profileChecksumMismatchAircraft": "REPLACE_WITH_PROFILE_CHECKSUM_MISMATCH_AIRCRAFT_ID",
+    "deletableAircraft": "REPLACE_WITH_DELETABLE_ACTIVE_AIRCRAFT_ID",
+    "secondaryAircraftId": "REPLACE_WITH_SECOND_DELETABLE_AIRCRAFT_ID",
+    "revisionChangedTokenAircraft": "REPLACE_WITH_ACTIVE_REVISION_TOKEN_AIRCRAFT_ID",
+    "expiredTokenAircraft": "REPLACE_WITH_EXPIRY_TOKEN_AIRCRAFT_ID",
+    "missingIdempotencyAircraft": "REPLACE_WITH_MISSING_IDEMPOTENCY_AIRCRAFT_ID",
+    "idProfileConfigured": true,
+    "decompProfilesConfigured": true
+  },
+  "instructionFixtures": {
+    "default": {
+      "aircraftId": "REPLACE_WITH_DEFAULT_ACTIVE_AIRCRAFT_ID",
+      "guardAircraftId": "REPLACE_WITH_DEDICATED_GUARD_AIRCRAFT_ID",
+      "queueAircraftId": "REPLACE_WITH_DEDICATED_QUEUE_AIRCRAFT_ID"
+    },
+    "TAKEOFF": {
+      "aircraftId": "REPLACE_WITH_PRE_DEPARTURE_AIRCRAFT_ID",
+      "guardAircraftId": "REPLACE_WITH_PRE_DEPARTURE_GUARD_AIRCRAFT_ID",
+      "queueAircraftId": "REPLACE_WITH_PRE_DEPARTURE_QUEUE_AIRCRAFT_ID"
+    },
+    "ILS": {
+      "aircraftId": "REPLACE_WITH_APPROACH_AIRCRAFT_ID",
+      "guardAircraftId": "REPLACE_WITH_APPROACH_GUARD_AIRCRAFT_ID",
+      "queueAircraftId": "REPLACE_WITH_APPROACH_QUEUE_AIRCRAFT_ID"
+    },
+    "MISSED": {
+      "aircraftId": "REPLACE_WITH_APPROACH_AIRCRAFT_ID",
+      "guardAircraftId": "REPLACE_WITH_APPROACH_GUARD_AIRCRAFT_ID",
+      "queueAircraftId": "REPLACE_WITH_APPROACH_QUEUE_AIRCRAFT_ID"
+    },
+    "FRE": {
+      "aircraftId": "REPLACE_WITH_HANDOVER_AIRCRAFT_ID"
+    },
+    "DEL": {
+      "aircraftId": "REPLACE_WITH_DELETABLE_ACTIVE_AIRCRAFT_ID",
+      "deletionTokenTtlSeconds": 30
+    },
+    "ID": {
+      "aircraftId": "REPLACE_WITH_ID_PROFILE_AIRCRAFT_ID",
+      "guardAircraftId": "REPLACE_WITH_ID_PROFILE_GUARD_AIRCRAFT_ID",
+      "queueAircraftId": "REPLACE_WITH_ID_PROFILE_QUEUE_AIRCRAFT_ID"
+    },
+    "DECOMP": {
+      "aircraftId": "REPLACE_WITH_DECOMP_PROFILE_AIRCRAFT_ID",
+      "guardAircraftId": "REPLACE_WITH_DECOMP_PROFILE_GUARD_AIRCRAFT_ID",
+      "queueAircraftId": "REPLACE_WITH_DECOMP_PROFILE_QUEUE_AIRCRAFT_ID"
+    }
+  }
+}
